@@ -9,6 +9,9 @@ import numpy as np
 import time
 from scipy.misc import imread, imresize
 
+NUM_EPOCHS = 100000
+BATCH_SIZE = 500
+
 
 def conv_layers(net_in):
     """
@@ -190,6 +193,7 @@ if __name__ == "__main__":
     network.print_params()
     network.print_layers()
 
+    # Load the pre-train weights
     if not os.path.isfile("vgg16_weights.npz"):
         print("Please download vgg16_weights.npz from : http://www.cs.toronto.edu/~frossard/post/vgg16/")
         exit()
@@ -201,3 +205,21 @@ if __name__ == "__main__":
         params.append(val[1])
 
     tl.files.assign_params(sess, params, network)
+
+    # define the optimizer
+    train_params = network.all_params
+    train_op = tf.train.AdamOptimizer(learning_rate=0.0001, beta1=0.9, beta2=0.999,
+                                      epsilon=1e-08, use_locking=False).minimize(cost, var_list=train_params)
+
+    # Load data and train the network
+    X_train, y_train, X_val, y_val, X_test, y_test = load_casia_data()
+    tl.utils.fit(sess, network, train_op, cost, X_train, y_train, x, y_,
+                 acc=acc, batch_size=BATCH_SIZE, n_epoch=NUM_EPOCHS,
+                 print_freq=100, X_val=X_val, y_val=y_val, eval_train=False)
+
+    # Evaluation
+    tl.utils.test(sess, network, acc, X_test, y_test, x, y_, batch_size=None, cost=cost)
+
+    # save the network to .npz file
+    tl.files.save_npz(network.all_params, name='model.npz')
+    sess.close()

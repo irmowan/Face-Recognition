@@ -4,7 +4,7 @@ from tensorflow.python.framework import dtypes
 
 LIST_PATH = "list.txt"
 NUM_EPOCHS = 100000
-BATCH_SIZE = 50
+BATCH_SIZE = 500
 
 
 def read_labeled_image_list(image_list_file):
@@ -38,10 +38,14 @@ def read_images_from_disk(input_queue):
     """
     label = input_queue[1]
     file_contents = tf.read_file(input_queue[0])
-    example = tf.image.decode_png(file_contents, channels=3)
+    example = tf.image.decode_jpeg(file_contents, channels=3)
     image = tf.image.resize_images(example, [224, 224])
     image.set_shape((224, 224, 3))
     return image, label
+
+
+def load_casia_data():
+    pass
 
 
 if __name__ == "__main__":
@@ -53,6 +57,7 @@ if __name__ == "__main__":
     # Makes an input queue
     input_queue = tf.train.slice_input_producer([images, labels], num_epochs=NUM_EPOCHS, shuffle=True)
     image, label = read_images_from_disk(input_queue)
-
+    print(type(image), type(label))
     # Optional Image and Label Batching
     image_batch, label_batch = tf.train.batch([image, label], batch_size=BATCH_SIZE)
+    print(type(image_batch), type(label_batch))
