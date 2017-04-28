@@ -15,13 +15,13 @@ def read_labeled_image_list(image_list_file):
     :return: filenames and labels of the dataset
     """
     with open(image_list_file, 'r') as f:
-        filenames = []
-        labels = []
+        image_list = []
+        label_list = []
         for line in f:
-            filename, label = line[:-1].split(' ')
-            filenames.append(filename)
-            labels.append(int(label))
-        return filenames, labels
+            filename, label = line[:2].split(' ')
+            image_list.append(filename)
+            label_list.append(int(label))
+        return image_list, label_list
 
 
 def read_images_from_disk(input_queue):
