@@ -20,9 +20,9 @@ FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_string('train_dir', '/tmp/casia_train',
                            """Directory where to write event logs and checkpoint.""")
-tf.app.flags.DEFINE_integer('max_steps', 1000000,
+tf.app.flags.DEFINE_integer('max_steps', 10000,
                             """Number of batches to run.""")
-tf.app.flags.DEFINE_integer('num_gpus', 2,
+tf.app.flags.DEFINE_integer('num_gpus', 1,
                             """How many GPUs to use.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
@@ -35,13 +35,14 @@ def tower_loss(scope):
     :param scope: unique prefix string
     :return:
     """
-    images, labels = model.read_casia()
-
+    print('Calculating loss...')
+    images_batch, labels_batch = model.read_casia()
+    print('Image shape: ' + str(images_batch.get_shape()))
     # Build inference Graph
-    logits = model.inference(images)
+    logits = model.inference(images_batch)
 
     # Build the portion of the Graph calculating the losses.
-    _ = model.loss(logits, labels)
+    _ = model.loss(logits, labels_batch)
 
     losses = tf.get_collection('losses', scope)
 
@@ -50,22 +51,30 @@ def tower_loss(scope):
     for l in losses + [total_loss]:
         loss_name = re.sub('%s_[0-9]*/' % model.TOWER_NAME, '', l.op.name)
         tf.summary.scalar(loss_name, l)
+    print('Completed')
     return total_loss
 
 
 def average_gradients(tower_grads):
+    print('Calculating average gradients........')
     average_grads = []
     for grad_and_vars in zip(*tower_grads):
         grads = []
-        for g, _ in grad_and_vars:
-            expanded_g = tf.expand_dims(g, 0)
-            grads.append(expanded_g)
-        grad = tf.concat(axis=0, values=grads)
-        grad = tf.reduce_mean(grad, 0)
+	print('size of tower grads' + str(len(tower_grads)))
+	for g, _ in grad_and_vars:
+            print('size of grad and vars:' + str(len(grad_and_vars)))
+            print('type of g: ' + str(type(g)))
+	    if not (g is None):
+		 expanded_g = tf.expand_dims(g, 0)
+           	 grads.append(expanded_g)
+        if len(grads) > 0:
+            grad = tf.concat(axis=0, values=grads)
+            grad = tf.reduce_mean(grad, 0)
 
-        v = grad_and_vars[0][1]
-        grad_and_vars = (grad, v)
-        average_grads.append(grad_and_vars)
+            v = grad_and_vars[0][1]
+            grad_and_vars = (grad, v)
+            average_grads.append(grad_and_vars)
+    print('Completed')
     return average_grads
 
 
@@ -81,29 +90,43 @@ def train():
                                         decay_steps,
                                         model.LEARNING_RATE_DECAY_FACTOR,
                                         staircase=True)
-        opt = tf.train.GradientDescentOptimizer(lr)
-        tower_grads = []
+        print('Define optimizer')
+	opt = tf.train.GradientDescentOptimizer(lr)
+        
+	print('Calculate the gradients for each model tower')
+	tower_grads = []
         with tf.variable_scope(tf.get_variable_scope()):
             for i in xrange(FLAGS.num_gpus):
+		print('GPU %s working...' %i)
                 with tf.device('/gpu:%s' % i):
                     with tf.name_scope('%s_%d' % (model.TOWER_NAME, i)) as scope:
-                        loss = tower_loss(scope)
-                        tf.get_variable_scope().reuse_variables()
-                        summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
-                        grads = opt.compute_gradients(loss)
+                        print('Calculate the loss for one tower')
+			loss = tower_loss(scope)
+                        print('Reuse loss for next tower')
+			tf.get_variable_scope().reuse_variables()
+                        print('Retain summaries form the final tower')
+			summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
+                        print('Calculate the gradients for the batch of data on this tower.')
+			grads = opt.compute_gradients(loss)
+			print('Keep track of the gradients across all towers')
                         tower_grads.append(grads)
-        grads = average_gradients(tower_grads)
-        summaries.append(tf.summary.scalar('learning_rate', lr), )
-
+			
+	print('Calculate the mean of each gradient')
+        print('Tower grads type:' + str(type(tower_grads)))
+	grads = average_gradients(tower_grads)
+        summaries.append(tf.summary.scalar('learning_rate', lr))
+	print('Add a histograms to track the learning rate')
         for grad, var in grads:
             if grad is not None:
                 summaries.append(tf.summary.histogram(var.op.name + '/gradients', grad))
-
+	
+	print('Apply the gradients to adjust the shared variables')
         apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
         for var in tf.trainable_variables():
             summaries.append(tf.summary.histogram(var.op.name, var))
 
-        variable_averages = tf.train.ExponentialMovingAverage(model.MOVING_AVERAGE_DECAY, global_step)
+        print('Define moving average')
+	variable_averages = tf.train.ExponentialMovingAverage(model.MOVING_AVERAGE_DECAY, global_step)
         variables_averages_op = variable_averages.apply(tf.trainable_variables())
         train_op = tf.group(apply_gradient_op, variables_averages_op)
         saver = tf.train.Saver(tf.global_variables())
@@ -113,13 +136,16 @@ def train():
         sess = tf.Session(config=tf.ConfigProto(
             allow_soft_placement=True,
             log_device_placement=FLAGS.log_device_placement))
-        sess.run(init)
+        print('Init session')
+	sess.run(init)
+	print('Start training...')
 
         tf.train.start_queue_runners(sess=sess)
 
         summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
 
         for step in xrange(FLAGS.max_steps):
+            print('Step %d' % step)
             start_time = time.time()
             _, loss_value = sess.run([train_op, loss])
             duration = time.time() - start_time

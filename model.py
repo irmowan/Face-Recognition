@@ -16,8 +16,9 @@ https://gist.github.com/eerwitt/518b0c9564e500b4b50f
 import re
 import tensorflow as tf
 from tensorflow.python.framework import ops
+import numpy as np
 
-tf.app.flags.DEFINE_integer('batch_size', 128,
+tf.app.flags.DEFINE_integer('batch_size', 64,
                             """Number of images to process in a batch.""")
 tf.app.flags.DEFINE_string('data_dir', '/data',
                            """Path to the CASIA data directory.""")
@@ -25,8 +26,8 @@ LIST_FILE = "casia.txt"
 FLAGS = tf.app.flags.FLAGS
 IMAGE_SIZE = 224
 NUM_CLASSES = 10575
-NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 50000
-NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 10000
+NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 5
+NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 2
 
 # Constants
 MOVING_AVERAGE_DECAY = 0.9999
@@ -34,7 +35,7 @@ NUM_EPOCHS_PER_DECAY = 350.0
 LEARNING_RATE_DECAY_FACTOR = 0.1
 INITIAL_LEARNING_RATE = 0.1
 TOWER_NAME = 'tower'
-
+input_queue = None
 
 def read_labeled_image_list(image_list_file):
     """
@@ -43,13 +44,17 @@ def read_labeled_image_list(image_list_file):
     :return: filenames and labels of the dataset
     """
     with open(image_list_file, 'r') as f:
+        print('Opened image list file')
         image_list = []
         label_list = []
-        for line in f:
+        for idx, line in enumerate(f):
             filename, label = line[:-1].split(' ')[:2]
+	    if idx % 100000 == 0:
+		print('Inputed %d lines' % idx) 
             image_list.append(filename)
             label_list.append(int(label))
-        return image_list, label_list
+        print('Return list.')
+    return image_list, label_list
 
 
 def read_image_from_disk(input_queue):
@@ -63,7 +68,7 @@ def read_image_from_disk(input_queue):
     return example, label
 
 
-def read_casia(batch_size=64, max_num_epochs=10000, num_preprocess_threads=16, shuffle=True):
+def generate_input_queue(max_num_epochs=5, num_preprocess_threads=16, shuffle=True):
     """
     :param batch_size:
     :param max_num_epochs:
@@ -71,24 +76,37 @@ def read_casia(batch_size=64, max_num_epochs=10000, num_preprocess_threads=16, s
     :param shuffle:
     :return:
     """
+    
     image_list, label_list = read_labeled_image_list(image_list_file=LIST_FILE)
     images = ops.convert_to_tensor(image_list, dtype=tf.string)
-    labels = ops.convert_to_tensor(label_list, dtype=tf.int32)
+    # labels = ops.convert_to_tensor(label_list, dtype=tf.int32)
+    labels = tf.one_hot(label_list, depth=NUM_CLASSES,on_value=1.0, off_value=0.0, axis=-1) 
+    print('Generate input queue...')
     input_queue = tf.train.slice_input_producer(
         [images, labels], num_epochs=max_num_epochs, shuffle=shuffle)
+    return input_queue
 
+
+def read_casia(num_preprocess_threads=16):
+    global input_queue
+    if input_queue is None:
+        input_queue = generate_input_queue()
+    
     images_and_labels = []
+    print('Begin reading...')
     for _ in range(num_preprocess_threads):
         image, label = read_image_from_disk(input_queue)
         image = tf.random_crop(image, [IMAGE_SIZE, IMAGE_SIZE, 3])
-        images_and_labels.append([image, label])
-
+	image = tf.image.per_image_standardization(image)
+        
+	images_and_labels.append([image, label])
     image_batch, label_batch = tf.train.batch_join(
         images_and_labels,
-        batch_size=batch_size,
-        capacity=4 * num_preprocess_threads * batch_size,
-        allow_smaller_final_batch=True
+        batch_size=FLAGS.batch_size,
+        capacity=4 * num_preprocess_threads * FLAGS.batch_size,
+        allow_smaller_final_batch=False
     )
+    print('Return batch size: ' + str(image_batch.get_shape()) + ' ' + str(label_batch.get_shape()))
     return image_batch, label_batch
 
 
@@ -137,25 +155,28 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
 
 
 def loss(logits, labels):
-    labels = tf.cast(labels, tf.int64)
-    cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+    print('Calculating loss in model.py')
+    labels = tf.cast(labels, tf.int32)
+    cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
         labels=labels, logits=logits, name='cross_entropy_per_example'
     )
     cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
     tf.add_to_collection('losses', cross_entropy_mean)
-    return tf.add_n(tf.get_collection('losses', name='total_loss'))
-    pass
+    return tf.add_n(tf.get_collection('losses'), name='total_loss')
 
 
 def inference(images):
     # conv1
     with tf.variable_scope('conv1') as scope:
-        kernel = _variable_with_weight_decay('weights', shape=[5, 5, 3, 64], stddev=5e-2, wd=0.0)
-    conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
-    biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
-    pre_activation = tf.nn.bias_add(conv, biases)
-    conv1 = tf.nn.relu(pre_activation, name=scope.name)
-    _activation_summary(conv1)
+        kernel = _variable_with_weight_decay('weights', shape=[5, 5,3, 64], stddev=5e-2, wd=0.0)
+        conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
+    	print('conv 1 shape:' + str(conv.get_shape()))
+	biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
+
+    	pre_activation = tf.nn.bias_add(conv, biases)
+        print(pre_activation.get_shape())
+    	conv1 = tf.nn.relu(pre_activation, name=scope.name)
+    	_activation_summary(conv1)
 
     # pool1
     pool1 = tf.nn.max_pool(conv1, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
@@ -164,11 +185,11 @@ def inference(images):
     # conv2
     with tf.variable_scope('conv2') as scope:
         kernel = _variable_with_weight_decay('weights', shape=[5, 5, 64, 64], stddev=5e-2, wd=0.0)
-    conv = tf.nn.conv2d(norm1, kernel, [1, 1, 1, 1], padding='SAME')
-    biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.1))
-    pre_activation = tf.nn.bias_add(conv, biases)
-    conv2 = tf.nn.relu(pre_activation, name=scope.name)
-    _activation_summary(conv2)
+    	conv = tf.nn.conv2d(norm1, kernel, [1, 1, 1, 1], padding='SAME')
+    	biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.1))
+    	pre_activation = tf.nn.bias_add(conv, biases)
+    	conv2 = tf.nn.relu(pre_activation, name=scope.name)
+   	_activation_summary(conv2)
 
     norm2 = tf.nn.lrn(pool1, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75, name='norm1')
     pool2 = tf.nn.max_pool(norm2, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
@@ -176,6 +197,7 @@ def inference(images):
     with tf.variable_scope('local3') as scope:
         reshape = tf.reshape(pool2, [FLAGS.batch_size, -1])
         dim = reshape.get_shape()[1].value
+	print('local3 reshape shape: ' + str(reshape.get_shape()))
         weights = _variable_with_weight_decay('weights', shape=[dim, 384], stddev=0.04, wd=0.004)
         biases = _variable_on_cpu('biases', [384], tf.constant_initializer(0.1))
         local3 = tf.nn.relu(tf.matmul(reshape, weights) + biases, name=scope.name)
