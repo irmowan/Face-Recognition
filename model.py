@@ -37,6 +37,7 @@ INITIAL_LEARNING_RATE = 0.1
 TOWER_NAME = 'tower'
 input_queue = None
 
+
 def read_labeled_image_list(image_list_file):
     """
     Reading labeled images from a list
@@ -49,8 +50,8 @@ def read_labeled_image_list(image_list_file):
         label_list = []
         for idx, line in enumerate(f):
             filename, label = line[:-1].split(' ')[:2]
-	    if idx % 100000 == 0:
-		print('Inputed %d lines' % idx) 
+            if idx % 100000 == 0:
+                print('Inputed %d lines' % idx)
             image_list.append(filename)
             label_list.append(int(label))
         print('Return list.')
@@ -76,11 +77,11 @@ def generate_input_queue(max_num_epochs=5, num_preprocess_threads=16, shuffle=Tr
     :param shuffle:
     :return:
     """
-    
+
     image_list, label_list = read_labeled_image_list(image_list_file=LIST_FILE)
     images = ops.convert_to_tensor(image_list, dtype=tf.string)
     # labels = ops.convert_to_tensor(label_list, dtype=tf.int32)
-    labels = tf.one_hot(label_list, depth=NUM_CLASSES,on_value=1.0, off_value=0.0, axis=-1) 
+    labels = tf.one_hot(label_list, depth=NUM_CLASSES, on_value=1.0, off_value=0.0, axis=-1)
     print('Generate input queue...')
     input_queue = tf.train.slice_input_producer(
         [images, labels], num_epochs=max_num_epochs, shuffle=shuffle)
@@ -91,15 +92,15 @@ def read_casia(num_preprocess_threads=16):
     global input_queue
     if input_queue is None:
         input_queue = generate_input_queue()
-    
+
     images_and_labels = []
     print('Begin reading...')
     for _ in range(num_preprocess_threads):
         image, label = read_image_from_disk(input_queue)
         image = tf.random_crop(image, [IMAGE_SIZE, IMAGE_SIZE, 3])
-	image = tf.image.per_image_standardization(image)
-        
-	images_and_labels.append([image, label])
+        image = tf.image.per_image_standardization(image)
+
+        images_and_labels.append([image, label])
     image_batch, label_batch = tf.train.batch_join(
         images_and_labels,
         batch_size=FLAGS.batch_size,
@@ -168,15 +169,15 @@ def loss(logits, labels):
 def inference(images):
     # conv1
     with tf.variable_scope('conv1') as scope:
-        kernel = _variable_with_weight_decay('weights', shape=[5, 5,3, 64], stddev=5e-2, wd=0.0)
+        kernel = _variable_with_weight_decay('weights', shape=[5, 5, 3, 64], stddev=5e-2, wd=0.0)
         conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
-    	print('conv 1 shape:' + str(conv.get_shape()))
-	biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
+        print('conv 1 shape:' + str(conv.get_shape()))
+        biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
 
-    	pre_activation = tf.nn.bias_add(conv, biases)
+        pre_activation = tf.nn.bias_add(conv, biases)
         print(pre_activation.get_shape())
-    	conv1 = tf.nn.relu(pre_activation, name=scope.name)
-    	_activation_summary(conv1)
+        conv1 = tf.nn.relu(pre_activation, name=scope.name)
+        _activation_summary(conv1)
 
     # pool1
     pool1 = tf.nn.max_pool(conv1, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
@@ -185,11 +186,11 @@ def inference(images):
     # conv2
     with tf.variable_scope('conv2') as scope:
         kernel = _variable_with_weight_decay('weights', shape=[5, 5, 64, 64], stddev=5e-2, wd=0.0)
-    	conv = tf.nn.conv2d(norm1, kernel, [1, 1, 1, 1], padding='SAME')
-    	biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.1))
-    	pre_activation = tf.nn.bias_add(conv, biases)
-    	conv2 = tf.nn.relu(pre_activation, name=scope.name)
-   	_activation_summary(conv2)
+        conv = tf.nn.conv2d(norm1, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.1))
+        pre_activation = tf.nn.bias_add(conv, biases)
+        conv2 = tf.nn.relu(pre_activation, name=scope.name)
+        _activation_summary(conv2)
 
     norm2 = tf.nn.lrn(pool1, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75, name='norm1')
     pool2 = tf.nn.max_pool(norm2, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
@@ -197,7 +198,7 @@ def inference(images):
     with tf.variable_scope('local3') as scope:
         reshape = tf.reshape(pool2, [FLAGS.batch_size, -1])
         dim = reshape.get_shape()[1].value
-	print('local3 reshape shape: ' + str(reshape.get_shape()))
+        print('local3 reshape shape: ' + str(reshape.get_shape()))
         weights = _variable_with_weight_decay('weights', shape=[dim, 384], stddev=0.04, wd=0.004)
         biases = _variable_on_cpu('biases', [384], tf.constant_initializer(0.1))
         local3 = tf.nn.relu(tf.matmul(reshape, weights) + biases, name=scope.name)

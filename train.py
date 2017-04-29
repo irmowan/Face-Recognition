@@ -60,13 +60,13 @@ def average_gradients(tower_grads):
     average_grads = []
     for grad_and_vars in zip(*tower_grads):
         grads = []
-	print('size of tower grads' + str(len(tower_grads)))
-	for g, _ in grad_and_vars:
+        print('size of tower grads' + str(len(tower_grads)))
+        for g, _ in grad_and_vars:
             print('size of grad and vars:' + str(len(grad_and_vars)))
             print('type of g: ' + str(type(g)))
-	    if not (g is None):
-		 expanded_g = tf.expand_dims(g, 0)
-           	 grads.append(expanded_g)
+            if not (g is None):
+                expanded_g = tf.expand_dims(g, 0)
+                grads.append(expanded_g)
         if len(grads) > 0:
             grad = tf.concat(axis=0, values=grads)
             grad = tf.reduce_mean(grad, 0)
@@ -91,42 +91,42 @@ def train():
                                         model.LEARNING_RATE_DECAY_FACTOR,
                                         staircase=True)
         print('Define optimizer')
-	opt = tf.train.GradientDescentOptimizer(lr)
-        
-	print('Calculate the gradients for each model tower')
-	tower_grads = []
+        opt = tf.train.GradientDescentOptimizer(lr)
+
+        print('Calculate the gradients for each model tower')
+        tower_grads = []
         with tf.variable_scope(tf.get_variable_scope()):
             for i in xrange(FLAGS.num_gpus):
-		print('GPU %s working...' %i)
+                print('GPU %s working...' % i)
                 with tf.device('/gpu:%s' % i):
                     with tf.name_scope('%s_%d' % (model.TOWER_NAME, i)) as scope:
                         print('Calculate the loss for one tower')
-			loss = tower_loss(scope)
+                        loss = tower_loss(scope)
                         print('Reuse loss for next tower')
-			tf.get_variable_scope().reuse_variables()
+                        tf.get_variable_scope().reuse_variables()
                         print('Retain summaries form the final tower')
-			summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
+                        summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
                         print('Calculate the gradients for the batch of data on this tower.')
-			grads = opt.compute_gradients(loss)
-			print('Keep track of the gradients across all towers')
+                        grads = opt.compute_gradients(loss)
+                        print('Keep track of the gradients across all towers')
                         tower_grads.append(grads)
-			
-	print('Calculate the mean of each gradient')
+
+        print('Calculate the mean of each gradient')
         print('Tower grads type:' + str(type(tower_grads)))
-	grads = average_gradients(tower_grads)
+        grads = average_gradients(tower_grads)
         summaries.append(tf.summary.scalar('learning_rate', lr))
-	print('Add a histograms to track the learning rate')
+        print('Add a histograms to track the learning rate')
         for grad, var in grads:
             if grad is not None:
                 summaries.append(tf.summary.histogram(var.op.name + '/gradients', grad))
-	
-	print('Apply the gradients to adjust the shared variables')
+
+        print('Apply the gradients to adjust the shared variables')
         apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
         for var in tf.trainable_variables():
             summaries.append(tf.summary.histogram(var.op.name, var))
 
         print('Define moving average')
-	variable_averages = tf.train.ExponentialMovingAverage(model.MOVING_AVERAGE_DECAY, global_step)
+        variable_averages = tf.train.ExponentialMovingAverage(model.MOVING_AVERAGE_DECAY, global_step)
         variables_averages_op = variable_averages.apply(tf.trainable_variables())
         train_op = tf.group(apply_gradient_op, variables_averages_op)
         saver = tf.train.Saver(tf.global_variables())
@@ -137,8 +137,8 @@ def train():
             allow_soft_placement=True,
             log_device_placement=FLAGS.log_device_placement))
         print('Init session')
-	sess.run(init)
-	print('Start training...')
+        sess.run(init)
+        print('Start training...')
 
         tf.train.start_queue_runners(sess=sess)
 
