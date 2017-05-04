@@ -1,6 +1,9 @@
 data/
 
 .idea/
+.ropeproject/
+
+*.npy
 
 __pycache__/
 *.py[cod]
