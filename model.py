@@ -17,10 +17,11 @@ import re
 import tensorflow as tf
 from tensorflow.python.framework import ops
 import numpy as np
+import os
 
 tf.app.flags.DEFINE_integer('batch_size', 64,
                             """Number of images to process in a batch.""")
-tf.app.flags.DEFINE_string('data_dir', '/data',
+tf.app.flags.DEFINE_string('data_dir', 'data/',
                            """Path to the CASIA data directory.""")
 LIST_FILE = "casia.txt"
 FLAGS = tf.app.flags.FLAGS
@@ -50,10 +51,13 @@ def read_labeled_image_list(image_list_file):
         label_list = []
         for idx, line in enumerate(f):
             filename, label = line[:-1].split(' ')[:2]
-            if idx % 100000 == 0:
-                print('Inputed %d lines' % idx)
-            image_list.append(filename)
-            label_list.append(int(label))
+            if os.path.exists(FLAGS.data_dir + filename):
+                if idx % 100000 == 0:
+                    print('Inputed %d lines' % idx)
+                image_list.append(filename)
+                label_list.append(int(label))
+            else:
+                print('File not found: ' + filename)
         print('Return list.')
     return image_list, label_list
 
@@ -69,7 +73,7 @@ def read_image_from_disk(input_queue):
     return example, label
 
 
-def generate_input_queue(max_num_epochs=5, num_preprocess_threads=16, shuffle=True):
+def generate_input_queue(max_num_epochs=None, num_preprocess_threads=16, shuffle=True):
     """
     :param batch_size:
     :param max_num_epochs:

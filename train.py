@@ -63,10 +63,7 @@ def average_gradients(tower_grads):
     average_grads = []
     for grad_and_vars in zip(*tower_grads):
         grads = []
-        print('size of tower grads' + str(len(tower_grads)))
         for g, _ in grad_and_vars:
-            print('size of grad and vars:' + str(len(grad_and_vars)))
-            print('type of g: ' + str(type(g)))
             if not (g is None):
                 expanded_g = tf.expand_dims(g, 0)
                 grads.append(expanded_g)
@@ -77,7 +74,6 @@ def average_gradients(tower_grads):
             v = grad_and_vars[0][1]
             grad_and_vars = (grad, v)
             average_grads.append(grad_and_vars)
-    print('Completed')
     return average_grads
 
 
