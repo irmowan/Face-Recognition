@@ -79,7 +79,7 @@ class Vgg16:
 
         self.fc8 = self.fc_layer(self.relu7, "fc8")
 
-        self.prob = tf.nn.softmax(self.fc8, name="prob")
+        self.prob = tf.nn.softmax(self.fc8, dim=10575, name="prob")
         print(("build model finished: %ds" % (time.time() - start_time)))
 
         return self.prob
