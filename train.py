@@ -80,7 +80,7 @@ def average_gradients(tower_grads):
 
 def train():
     with tf.Graph().as_default(), tf.device('/cpu:0'):
-        global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
+        global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=True)
         num_batches_per_epoch = (model.NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN / FLAGS.batch_size)
         decay_steps = int(num_batches_per_epoch * model.NUM_EPOCHS_PER_DECAY)
 
@@ -96,13 +96,13 @@ def train():
         vgg = vgg16.VGG16(trainable=True)
         vgg.build_op()
 
-        tower_grads = []
-        with tf.device('/gpu:0'):
-            scope = tf.name_scope('%s_%d' % (model.TOWER_NAME, 0))
-            # loss = tower_loss(scope, vgg)
-            vgg.loss_layer()
-            loss = vgg.cost
-            tf.get_variable_scope().reuse_variables()
+        # tower_grads = []
+        # with tf.device('/gpu:0'):
+        #    scope = tf.name_scope('%s_%d' % (model.TOWER_NAME, 0))
+        #    # loss = tower_loss(scope, vgg)
+        #    vgg.loss_layer()
+        #    loss = vgg.cost
+        #    tf.get_variable_scope().reuse_variables()
             # with tf.variable_scope(tf.get_variable_scope()):
             #     for i in xrange(FLAGS.num_gpus):
             #         print('GPU %s working...' % i)
@@ -142,27 +142,30 @@ def train():
         # summary_op = tf.summary.merge(summaries)
 
         init = tf.global_variables_initializer()
-        sess = tf.Session(
-            config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=FLAGS.log_device_placement))
+        print('Create session')
+        sess = tf.Session()
+        #     config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=FLAGS.log_device_placement))
+        
         print('Init session')
         sess.run(init)
 
         print('Start training...')
-        tf.train.start_queue_runners(sess=sess)
+        # tf.train.start_queue_runners(sess=sess)
 
         # summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
         for step in xrange(FLAGS.max_steps):
-            print('Step %d' % step)
+            # print('Step %d' % step)
             start_time = time.time()
             images, labels = model.read_casia()
-            print('images type:' + str(type(images)))
-            print('labels type:' + str(type(labels)))
-            sess.run(vgg.train_op, feed_dict={vgg.imgs:images, vgg.labels:labels})
+            _, pred, loss_value = sess.run([vgg.train_op, vgg.prob, vgg.cost], feed_dict={vgg.imgs:images, vgg.labels:labels})
             duration = time.time() - start_time
+            print(np.where(pred>0.001))
+            print(pred)
+            # loss_value = vgg.cost
+            # assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
 
-            assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
-
-            if step % 10 == 0:
+            if step % 3 == 0:
+                # loss_value = sess.run(vgg.cost, feed_dict={vgg.imgs:images, vgg.labels:labels})
                 num_examples_per_step = FLAGS.batch_size * FLAGS.num_gpus
                 examples_per_sec = num_examples_per_step / duration
                 sec_per_batch = duration / FLAGS.num_gpus

@@ -19,8 +19,9 @@ from tensorflow.python.framework import ops
 import numpy as np
 from scipy import misc
 import os
+import random
 
-tf.app.flags.DEFINE_integer('batch_size', 64,
+tf.app.flags.DEFINE_integer('batch_size', 16,
                             """Number of images to process in a batch.""")
 tf.app.flags.DEFINE_string('data_dir', 'data/',
                            """Path to the CASIA data directory.""")
@@ -68,17 +69,23 @@ def read_image_from_disk(input_queue):
     :param input_queue:
     :return:
     """
-    print(str(type(input_queue[0])) + str(type(input_queue[1])))
-    sess = tf.Session()
-    with sess.as_default():
-        label = input_queue[1].eval()
-        file_path = input_queue[0].eval()
-    image = misc.imread(file_path)
+    image_and_label = input_queue.pop(0)
+    file_path = image_and_label[0]
+    label = image_and_label[1]
+    # print('Create session for read...')
+    # sess = tf.Session()
+    # print('Run session for read...')
+    # with sess.as_default():
+    #     label = input_queue[1].eval()
+    #     file_path = input_queue[0].eval()
+    print('File path:' + file_path)
+    image = misc.imread(FLAGS.data_dir + file_path)
     # example = tf.image.decode_jpeg(file_contents, channels=3)
+    # print('End session for read image.')
     return image, label
 
 
-def generate_input_queue(max_num_epochs=None, num_preprocess_threads=64, shuffle=True):
+def generate_input_queue(max_num_epochs=None, shuffle=True):
     """
     :param batch_size:
     :param max_num_epochs:
@@ -91,33 +98,45 @@ def generate_input_queue(max_num_epochs=None, num_preprocess_threads=64, shuffle
     # images = ops.convert_to_tensor(image_list, dtype=tf.string)
     # labels = ops.convert_to_tensor(label_list, dtype=tf.int32)
     # labels = tf.one_hot(label_list, depth=NUM_CLASSES, on_value=1.0, off_value=0.0, axis=-1)
-    images = image_list
-    labels = label_list
-    print(type(images))
-    print(type(labels))
+    # images = image_list
+    # labels = label_list
+    print('Generate input queue...')
+    input_queue = zip(image_list, label_list)
+    random.shuffle(input_queue)
+    # print(type(images))
+    # print(type(labels))
     # labels = np.zeros((len(images), NUM_CLASSES))
     # labels[np.arange(len(images)), label_list] = 1
-    print('Generate input queue...')
-    input_queue = tf.train.slice_input_producer(
-        [images, labels], num_epochs=max_num_epochs, shuffle=shuffle)
+    # input_queue = tf.train.slice_input_producer(
+    #    [images, labels], num_epochs=max_num_epochs, shuffle=shuffle)
     return input_queue
 
 
-def read_casia(num_preprocess_threads=16):
+def preprocess_image(image):
+    crop = 224
+    y, x, _ = image.shape
+    startx = x//2 - (crop//2)
+    starty = y//2 - (crop//2)
+    return image[starty:starty+crop, startx:startx+crop, :]
+
+def read_casia():
     global input_queue
-    if input_queue is None:
+    if input_queue is None or len(input_queue) == 0:
         input_queue = generate_input_queue()
 
     images = []
     labels = []
-    print('Begin reading...')
-    for _ in range(num_preprocess_threads):
-        image, label = read_image_from_disk(input_queue)
-	print(type(image))	
+    # print('Begin reading...')
+    for i in range(FLAGS.batch_size):
+        image, label_idx = read_image_from_disk(input_queue)
+	    # print(type(image))	
         # image = tf.random_crop(image, [IMAGE_SIZE, IMAGE_SIZE, 3])
         # image = tf.image.per_image_standardization(image)	
         # images_and_labels.append([image, label])
+        image = preprocess_image(image)
         images.append(image)
+        label = np.zeros(NUM_CLASSES)
+        label[label_idx] = 1
         labels.append(label)
     image_batch = np.array([x for x in images])
     label_batch = np.array([x for x in labels])
@@ -129,7 +148,7 @@ def read_casia(num_preprocess_threads=16):
     #     allow_smaller_final_batch=False
     # )
     
-    print('Return batch size: ' + str(image_batch.shape) + ' ' + str(label_batch.shape))
+    # print('Return batch size: ' + str(image_batch.shape) + ' ' + str(label_batch.shape))
     # sess = tf.Session()
     # with sess.as_default():
     #     images = tf.cast(image_batch, tf.float32).eval()
