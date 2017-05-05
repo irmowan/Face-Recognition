@@ -38,6 +38,7 @@ def tower_loss(scope, vgg):
     """
     print('Calculating loss...')
     images_batch, labels_batch = model.read_casia()
+
     print('Image shape: ' + str(images_batch.get_shape()))
     # Build inference Graph
 
@@ -92,13 +93,15 @@ def train():
         # opt = tf.train.GradientDescentOptimizer(lr)
 
         # print('Calculate the gradients for each model tower')
-        vgg = vgg16.Vgg16()
+        vgg = vgg16.VGG16(trainable=True)
         vgg.build_op()
 
         tower_grads = []
         with tf.device('/gpu:0'):
             scope = tf.name_scope('%s_%d' % (model.TOWER_NAME, 0))
-            loss = tower_loss(scope, vgg)
+            # loss = tower_loss(scope, vgg)
+            vgg.loss_layer()
+            loss = vgg.cost
             tf.get_variable_scope().reuse_variables()
             # with tf.variable_scope(tf.get_variable_scope()):
             #     for i in xrange(FLAGS.num_gpus):
@@ -151,7 +154,10 @@ def train():
         for step in xrange(FLAGS.max_steps):
             print('Step %d' % step)
             start_time = time.time()
-            _, loss_value = sess.run([vgg.train_op, loss])
+            images, labels = model.read_casia()
+            print('images type:' + str(type(images)))
+            print('labels type:' + str(type(labels)))
+            sess.run(vgg.train_op, feed_dict={vgg.imgs:images, vgg.labels:labels})
             duration = time.time() - start_time
 
             assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
@@ -181,3 +187,4 @@ def main(argv=None):
 
 if __name__ == '__main__':
     tf.app.run()
+

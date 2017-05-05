@@ -13,20 +13,22 @@ NUM_CLASSES = 10575
 
 
 class VGG16:
-    def __init__(self, param_dict, vgg16_npy_path=None, trainable=True):
+    def __init__(self, vgg16_npy_path=None, trainable=True):
         if vgg16_npy_path is None:
             path = inspect.getfile(VGG16)
             path = os.path.abspath(os.path.join(path, os.pardir))
-            path = os.path.join(path, "vgg16_ver2.pkl")
+            path = os.path.join(path, "vgg16.npy")
             vgg16_npy_path = path
             print(path)
-        self.param_dict = param_dict
         self.trainable = trainable
         self.imgs = tf.placeholder(tf.float32, [None, 224, 224, 3], name='images')
         self.labels = tf.placeholder(tf.float32, [None, NUM_CLASSES], name='labels')
         self.var_dict = {}
+        self.data_dict = None
         with open(vgg16_npy_path, 'rb') as f:
-            self.data_dict = pickle.load(f)
+            self.data_dict = np.load(vgg16_npy_path, encoding='latin1').item()
+	#    # self.data_dict = pickle.load(f)
+        #    pickle.dump(self.data_dict, f, protocol=2) 
         self.lrn_rate = 0.001
         print("npy file loaded")
         self.build()
@@ -98,7 +100,7 @@ class VGG16:
         elif self.trainable:
             self.relu7 = tf.nn.dropout(self.relu7, 0.5)
 
-        self.fc8 = self.fc_layer(self.relu7, 4096, self.param_dict['classes_num'], "fc8")
+        self.fc8 = self.fc_layer(self.relu7, 2048, NUM_CLASSES, "fc8")
 
         self.prob = tf.nn.softmax(self.fc8, name="prob")
         self.predictions = self.prob
@@ -167,7 +169,7 @@ class VGG16:
         return weights, biases
 
     def get_var(self, initial_value, name, idx, var_name):
-        if self.data_dict is not None and name in self.data_dict:
+        if self.data_dict is not None and name in self.data_dict and name != 'fc8':
             value = self.data_dict[name][idx]
             print(name, str(idx))
         else:
