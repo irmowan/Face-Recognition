@@ -24,12 +24,13 @@ class VGG16:
         self.imgs = tf.placeholder(tf.float32, [None, 224, 224, 3], name='images')
         self.labels = tf.placeholder(tf.float32, [None, NUM_CLASSES], name='labels')
         self.var_dict = {}
+        self.temp_value=None
         self.data_dict = None
         with open(vgg16_npy_path, 'rb') as f:
             self.data_dict = np.load(vgg16_npy_path, encoding='latin1').item()
 	#    # self.data_dict = pickle.load(f)
         #    pickle.dump(self.data_dict, f, protocol=2) 
-        self.lrn_rate = 0.001
+        self.lrn_rate = 0.0001
         print("npy file loaded")
         self.build()
         self.loss_layer()
@@ -46,6 +47,7 @@ class VGG16:
 
         mean = tf.constant([103.939, 116.779, 123.68], dtype=tf.float32, shape=[1, 1, 1, 3], name='img_mean')
         images = self.imgs - mean
+        # images = tf.divide(images, 128)
         # Convert RGB to BGR
         '''
         red, green, blue = tf.split(self.imgs, 3, 3)
@@ -117,7 +119,7 @@ class VGG16:
     def build_op(self):
         trainable_variables = tf.trainable_variables()
         grads = tf.gradients(self.cost, trainable_variables)
-        optimizer = tf.train.MomentumOptimizer(self.lrn_rate, 0.9)
+        optimizer = tf.train.AdadeltaOptimizer(self.lrn_rate, 0.9)
 
         apply_op = optimizer.apply_gradients(
             zip(grads, trainable_variables), name='train_step')
@@ -169,11 +171,15 @@ class VGG16:
         return weights, biases
 
     def get_var(self, initial_value, name, idx, var_name):
-        if self.data_dict is not None and name in self.data_dict and name != 'fc8':
+        if self.data_dict is not None and name in self.data_dict and name!='fc8':
             value = self.data_dict[name][idx]
             print(name, str(idx))
         else:
+            # sess = tf.Session()
             value = initial_value
+            # print(name +' initializing...')
+            # print('Value: ' + str(sess.run(value)))
+
 
         if self.trainable:
             var = tf.Variable(value, name=var_name)

@@ -21,7 +21,7 @@ from scipy import misc
 import os
 import random
 
-tf.app.flags.DEFINE_integer('batch_size', 16,
+tf.app.flags.DEFINE_integer('batch_size', 32,
                             """Number of images to process in a batch.""")
 tf.app.flags.DEFINE_string('data_dir', 'data/',
                            """Path to the CASIA data directory.""")
@@ -78,7 +78,7 @@ def read_image_from_disk(input_queue):
     # with sess.as_default():
     #     label = input_queue[1].eval()
     #     file_path = input_queue[0].eval()
-    print('File path:' + file_path)
+    # print('File path:' + file_path)
     image = misc.imread(FLAGS.data_dir + file_path)
     # example = tf.image.decode_jpeg(file_contents, channels=3)
     # print('End session for read image.')
@@ -128,16 +128,19 @@ def read_casia():
     labels = []
     # print('Begin reading...')
     for i in range(FLAGS.batch_size):
-        image, label_idx = read_image_from_disk(input_queue)
-	    # print(type(image))	
-        # image = tf.random_crop(image, [IMAGE_SIZE, IMAGE_SIZE, 3])
-        # image = tf.image.per_image_standardization(image)	
-        # images_and_labels.append([image, label])
-        image = preprocess_image(image)
-        images.append(image)
-        label = np.zeros(NUM_CLASSES)
-        label[label_idx] = 1
-        labels.append(label)
+        try:
+            image, label_idx = read_image_from_disk(input_queue)
+                    # print(type(image))	
+            # image = tf.random_crop(image, [IMAGE_SIZE, IMAGE_SIZE, 3])
+            # image = tf.image.per_image_standardization(image)	
+            # images_and_labels.append([image, label])
+            image = preprocess_image(image)
+            images.append(image)
+            label = np.zeros(NUM_CLASSES)
+            label[label_idx] = 1
+            labels.append(label)
+        except:
+            i = i - 1
     image_batch = np.array([x for x in images])
     label_batch = np.array([x for x in labels])
     # print(len(images_and_labels))
