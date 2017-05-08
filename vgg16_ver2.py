@@ -100,7 +100,7 @@ class VGG16:
         elif self.trainable:
             self.relu7 = tf.nn.dropout(self.relu7, 0.5)
 
-        self.fc8 = self.fc_layer(self.relu7, 2048, NUM_CLASSES, "fc8")
+        self.fc8 = self.fc_layer(self.relu7, 4096, NUM_CLASSES, "fc8")
 
         self.prob = tf.nn.softmax(self.fc8, name="prob")
         self.predictions = self.prob
