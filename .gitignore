@@ -4,6 +4,7 @@ data/
 .ropeproject/
 
 *.npy
+*.npz
 *.pkl
 
 __pycache__/
