@@ -9,7 +9,7 @@ import pickle
 VGG_MEAN = [103.939, 116.779, 123.68]
 
 FLAGS = tf.app.flags.FLAGS
-NUM_CLASSES = 10575
+NUM_CLASSES = 32 
 
 
 class VGG16:
@@ -30,7 +30,7 @@ class VGG16:
             self.data_dict = np.load(vgg16_npy_path, encoding='latin1').item()
 	#    # self.data_dict = pickle.load(f)
         #    pickle.dump(self.data_dict, f, protocol=2) 
-        self.lrn_rate = 0.0001
+        self.lrn_rate = 0.01
         print("npy file loaded")
         self.build()
         self.loss_layer()
@@ -90,17 +90,17 @@ class VGG16:
 
         self.fc6 = self.fc_layer(self.pool5, 25088, 4096, "fc6")  # 25088 = ((224 / (2 ** 5)) ** 2) * 512
         self.relu6 = tf.nn.relu(self.fc6)
-        if train_mode is not None:
-            self.relu6 = tf.cond(train_mode, lambda: tf.nn.dropout(self.relu6, 0.5), lambda: self.relu6)
-        elif self.trainable:
-            self.relu6 = tf.nn.dropout(self.relu6, 0.5)
+        #if train_mode is not None:
+        #    self.relu6 = tf.cond(train_mode, lambda: tf.nn.dropout(self.relu6, 0.5), lambda: self.relu6)
+        #elif self.trainable:
+        #    self.relu6 = tf.nn.dropout(self.relu6, 0.5)
 
         self.fc7 = self.fc_layer(self.relu6, 4096, 4096, "fc7")
         self.relu7 = tf.nn.relu(self.fc7)
-        if train_mode is not None:
-            self.relu7 = tf.cond(train_mode, lambda: tf.nn.dropout(self.relu7, 0.5), lambda: self.relu7)
-        elif self.trainable:
-            self.relu7 = tf.nn.dropout(self.relu7, 0.5)
+        #if train_mode is not None:
+        #    self.relu7 = tf.cond(train_mode, lambda: tf.nn.dropout(self.relu7, 0.5), lambda: self.relu7)
+        #elif self.trainable:
+        #    self.relu7 = tf.nn.dropout(self.relu7, 0.5)
 
         self.fc8 = self.fc_layer(self.relu7, 4096, NUM_CLASSES, "fc8")
 

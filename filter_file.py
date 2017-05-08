@@ -6,7 +6,7 @@ import os
 
 INPUT = 'casia.txt'
 OUTPUT = 'casia_2.txt'
-
+SIZE = 32
 
 def read_labeled_image_list(image_list_file):
     """
@@ -24,7 +24,7 @@ def read_labeled_image_list(image_list_file):
             if os.path.exists('data/' + filename):
                 if idx % 100000 == 0:
                     print('Inputted %d lines' % idx)
-                if label == 0 or label == 1:
+                if label < SIZE:
                     image_list.append(filename)
                     label_list.append(int(label))
             else:
@@ -36,9 +36,11 @@ def read_labeled_image_list(image_list_file):
 def output_image_list(output_file, image_list, label_list):
     with open(output_file, 'w') as f:
         for image, label in zip(image_list, label_list):
-            f.write(image + ' ' + str(label))
+            f.write(image + ' ' + str(label) + '\n')
 
 
 if __name__ == "__main__":
     image_list, label_list = read_labeled_image_list(INPUT)
-    output_image_list(image_list, label_list)
+    print(image_list)
+    print(label_list)
+    output_image_list(OUTPUT, image_list, label_list)

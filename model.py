@@ -25,10 +25,10 @@ tf.app.flags.DEFINE_integer('batch_size', 32,
                             """Number of images to process in a batch.""")
 tf.app.flags.DEFINE_string('data_dir', 'data/',
                            """Path to the CASIA data directory.""")
-LIST_FILE = "casia.txt"
+LIST_FILE = "casia_2.txt"
 FLAGS = tf.app.flags.FLAGS
 IMAGE_SIZE = 224
-NUM_CLASSES = 10575
+NUM_CLASSES = 32 
 NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 5
 NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 2
 
@@ -48,19 +48,19 @@ def read_labeled_image_list(image_list_file):
     :return: filenames and labels of the dataset
     """
     with open(image_list_file, 'r') as f:
-        print('Opened image list file')
+        # print('Opened image list file')
         image_list = []
         label_list = []
         for idx, line in enumerate(f):
             filename, label = line[:-1].split(' ')[:2]
             if os.path.exists(FLAGS.data_dir + filename):
-                if idx % 100000 == 0:
-                    print('Inputed %d lines' % idx)
+                # if idx % 100000 == 0:
+                #     print('Inputed %d lines' % idx)
                 image_list.append(filename)
                 label_list.append(int(label))
             else:
                 print('File not found: ' + filename)
-        print('Return list.')
+        # print('Return list.')
     return image_list, label_list
 
 

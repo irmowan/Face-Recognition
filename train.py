@@ -168,15 +168,18 @@ def train():
         # assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
 
         if step % 10 == 0:
-            pred, loss_value = sess.run([vgg.prob, vgg.cost], feed_dict={vgg.imgs:images, vgg.labels:labels})
+            fc7, pred, loss_value = sess.run([vgg.fc7, vgg.prob, vgg.cost], feed_dict={vgg.imgs:images, vgg.labels:labels})
             # print(np.amax(pred))
+            # print(fc7)
             num_images_per_step = FLAGS.batch_size * FLAGS.num_gpus
             images_per_sec = num_images_per_step / duration
             sec_per_batch = duration / FLAGS.num_gpus
-            format_str = '%s: step %d, loss = %.4f (%.1f images/sec; %.3f sec/batch, max_pred: %.6f)'
-            print(format_str % (datetime.now(), step, loss_value, images_per_sec, sec_per_batch, np.amax(pred)))
-            if (np.amax(pred)>0.1):
-                print(pred, np.where(pred>0.1),np.where(labels>0.1))
+            format_str = '%s: step %d, loss = %.4f (%.1f images/sec; %.3f sec/batch)'
+            print(format_str % (datetime.now(), step, loss_value, images_per_sec, sec_per_batch))
+            # print('Pred: ' + str(np.amax(pred, axis=1)))
+            #if (np.amax(pred)>0.1):
+            #    print(np.where(pred>0.1))
+            #    print(np.where(labels>0.1))
 
         # if step % 100 == 0:
         #     summary_str = sess.run(summary_op)
