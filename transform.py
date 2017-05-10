@@ -141,12 +141,8 @@ def im_crop(im, landmark, resize_scale):
     crop_y_end = crop_y + cfg.crop_size - 1
     box_x = guard(np.array([crop_x, crop_x_end]), im.shape[0])
     box_y = guard(np.array([crop_y, crop_y_end]), im.shape[1])
-    crop[(box_y[0] - crop_y):(box_y[1] - crop_y + 1), (box_x[0] - crop_x):(box_x[1] - crop_x + 1), :] = im[
-                                                                                                        box_y[0]:box_y[
-                                                                                                                     1] + 1,
-                                                                                                        box_x[0]:box_x[
-                                                                                                                     1] + 1,
-                                                                                                        :]
+    crop[(box_y[0] - crop_y):(box_y[1] - crop_y + 1), (box_x[0] - crop_x):(box_x[1] - crop_x + 1), :] = \
+        im[box_y[0]:box_y[1] + 1, box_x[0]:box_x[1] + 1, :]
     return crop
 
 

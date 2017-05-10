@@ -20,6 +20,7 @@ import numpy as np
 from scipy import misc
 import os
 import random
+import transform
 
 tf.app.flags.DEFINE_integer('batch_size', 32,
                             """Number of images to process in a batch.""")
@@ -34,6 +35,7 @@ IMAGE_SIZE = 224
 TOWER_NAME = 'tower'
 input_queue = None
 
+
 # NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 5
 # NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 2
 
@@ -44,48 +46,17 @@ input_queue = None
 # INITIAL_LEARNING_RATE = 0.1
 
 
-def read_labeled_image_list(image_list_file):
-    """
-    Reading labeled images from a list
-    :param image_list_file: the path of the file
-    :return: filenames and labels of the dataset
-    """
-    with open(image_list_file, 'r') as f:
-        # print('Opened image list file')
-        image_list = []
-        label_list = []
-        for idx, line in enumerate(f):
-            filename, label = line[:-1].split(' ')[:2]
-            if os.path.exists(FLAGS.data_dir + filename):
-                # if idx % 100000 == 0:
-                #     print('Inputed %d lines' % idx)
-                image_list.append(filename)
-                label_list.append(int(label))
-            else:
-                print('File not found: ' + filename)
-                # print('Return list.')
-    return image_list, label_list
-
-
 def read_image_from_disk(input_queue):
     """
     :param input_queue:
     :return:
     """
-    image_and_label = input_queue.pop(0)
-    file_path = image_and_label[0]
-    label = image_and_label[1]
-    # print('Create session for read...')
-    # sess = tf.Session()
-    # print('Run session for read...')
-    # with sess.as_default():
-    #     label = input_queue[1].eval()
-    #     file_path = input_queue[0].eval()
-    # print('File path:' + file_path)
+    element = input_queue.pop(0)
+    file_path = element[0]
+    label = element[1]
+    landmark = element[2]
     image = misc.imread(FLAGS.data_dir + file_path)
-    # example = tf.image.decode_jpeg(file_contents, channels=3)
-    # print('End session for read image.')
-    return image, label
+    return image, label, landmark
 
 
 def generate_input_queue(max_num_epochs=None, shuffle=True):
@@ -97,15 +68,36 @@ def generate_input_queue(max_num_epochs=None, shuffle=True):
     :return:
     """
 
-    image_list, label_list = read_labeled_image_list(image_list_file=LIST_FILE)
+    def read_labeled_image_list(image_list_file):
+        """
+        Reading labeled images from a list
+        :param image_list_file: the path of the file
+        :return: filenames and labels of the dataset
+        """
+        with open(image_list_file, 'r') as f:
+            image_list = []
+            label_list = []
+            landmark_list = []
+            for idx, line in enumerate(f):
+                filename, label = line[:-1].split(' ')[:2]
+                landmark = line[:-1].split(' ')[2:]
+                if os.path.exists(FLAGS.data_dir + filename):
+                    image_list.append(filename)
+                    label_list.append(int(label))
+                    landmark_list.append(landmark)
+                else:
+                    print('File not found: ' + filename)
+        return image_list, label_list, landmark_list
+
+    image_list, label_list, landmark_list = read_labeled_image_list(image_list_file=LIST_FILE)
+    print('Generate input queue...')
+    input_queue = zip(image_list, label_list, landmark_list)
+    random.shuffle(input_queue)
     # images = ops.convert_to_tensor(image_list, dtype=tf.string)
     # labels = ops.convert_to_tensor(label_list, dtype=tf.int32)
     # labels = tf.one_hot(label_list, depth=NUM_CLASSE, on_value=1.0, off_value=0.0, axis=-1)
     # images = image_list
     # labels = label_list
-    print('Generate input queue...')
-    input_queue = zip(image_list, label_list)
-    random.shuffle(input_queue)
     # print(type(images))
     # print(type(labels))
     # labels = np.zeros((len(images), FLAGS.num_classes))
@@ -115,7 +107,7 @@ def generate_input_queue(max_num_epochs=None, shuffle=True):
     return input_queue
 
 
-def preprocess_image(image):
+def center_crop(image):
     crop = 224
     y, x, _ = image.shape
     startx = x // 2 - (crop // 2)
@@ -130,15 +122,14 @@ def read_casia():
 
     images = []
     labels = []
-    # print('Begin reading...')
     for i in range(FLAGS.batch_size):
         try:
-            image, label_idx = read_image_from_disk(input_queue)
+            image, label_idx, landmark = read_image_from_disk(input_queue)
             # print(type(image))
             # image = tf.random_crop(image, [IMAGE_SIZE, IMAGE_SIZE, 3])
             # image = tf.image.per_image_standardization(image)	
             # images_and_labels.append([image, label])
-            image = preprocess_image(image)
+            # image = transform.img_process(image, landmark)
             images.append(image)
             label = np.zeros(FLAGS.num_classes)
             label[label_idx] = 1
@@ -192,82 +183,81 @@ def _activation_summary(x):
     tf.summary.histogram(tensor_name + '/activations', x)
     tf.summary.scalar(tensor_name + '/sparsity', tf.nn.zero_fraction(x))
 
+#
+# def _variable_on_cpu(name, shape, initializer):
+#     with tf.device('/cpu:0'):
+#         var = tf.get_variable(name, shape, initializer=initializer, dtype=tf.float32)
+#     return var
+#
+#
+# def _variable_with_weight_decay(name, shape, stddev, wd):
+#     var = _variable_on_cpu(name, shape, tf.truncated_normal_initializer(stddev=stddev, dtype=tf.float32))
+#     if wd is not None:
+#         weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
+#         tf.add_to_collection('losses', weight_decay)
+#     return var
+#
+#
+# def loss(logits, labels):
+#     labels = tf.cast(labels, tf.int32)
+#     cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
+#         labels=labels, logits=logits, name='cross_entropy_per_example'
+#     )
+#     cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
+#     tf.add_to_collection('losses', cross_entropy_mean)
+#     return tf.add_n(tf.get_collection('losses'), name='total_loss')
 
-def _variable_on_cpu(name, shape, initializer):
-    with tf.device('/cpu:0'):
-        var = tf.get_variable(name, shape, initializer=initializer, dtype=tf.float32)
-    return var
 
-
-def _variable_with_weight_decay(name, shape, stddev, wd):
-    var = _variable_on_cpu(name, shape, tf.truncated_normal_initializer(stddev=stddev, dtype=tf.float32))
-    if wd is not None:
-        weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
-        tf.add_to_collection('losses', weight_decay)
-    return var
-
-
-def loss(logits, labels):
-    labels = tf.cast(labels, tf.int32)
-    cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
-        labels=labels, logits=logits, name='cross_entropy_per_example'
-    )
-    cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
-    tf.add_to_collection('losses', cross_entropy_mean)
-    return tf.add_n(tf.get_collection('losses'), name='total_loss')
-
-
-def inference(images):
-    # conv1
-    with tf.variable_scope('conv1') as scope:
-        kernel = _variable_with_weight_decay('weights', shape=[5, 5, 3, 64], stddev=5e-2, wd=0.0)
-        conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
-        print('conv 1 shape:' + str(conv.get_shape()))
-        biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
-
-        pre_activation = tf.nn.bias_add(conv, biases)
-        print(pre_activation.get_shape())
-        conv1 = tf.nn.relu(pre_activation, name=scope.name)
-        _activation_summary(conv1)
-
-    # pool1
-    pool1 = tf.nn.max_pool(conv1, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
-                           padding='SAME', name='pool1')
-    norm1 = tf.nn.lrn(pool1, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75, name='norm1')
-    # conv2
-    with tf.variable_scope('conv2') as scope:
-        kernel = _variable_with_weight_decay('weights', shape=[5, 5, 64, 64], stddev=5e-2, wd=0.0)
-        conv = tf.nn.conv2d(norm1, kernel, [1, 1, 1, 1], padding='SAME')
-        biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.1))
-        pre_activation = tf.nn.bias_add(conv, biases)
-        conv2 = tf.nn.relu(pre_activation, name=scope.name)
-        _activation_summary(conv2)
-
-    norm2 = tf.nn.lrn(pool1, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75, name='norm1')
-    pool2 = tf.nn.max_pool(norm2, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
-                           padding='SAME', name='pool2')
-    with tf.variable_scope('local3') as scope:
-        reshape = tf.reshape(pool2, [FLAGS.batch_size, -1])
-        dim = reshape.get_shape()[1].value
-        print('local3 reshape shape: ' + str(reshape.get_shape()))
-        weights = _variable_with_weight_decay('weights', shape=[dim, 384], stddev=0.04, wd=0.004)
-        biases = _variable_on_cpu('biases', [384], tf.constant_initializer(0.1))
-        local3 = tf.nn.relu(tf.matmul(reshape, weights) + biases, name=scope.name)
-        _activation_summary(local3)
-    with tf.variable_scope('local4') as scope:
-        weights = _variable_with_weight_decay('weights', shape=[384, 192], stddev=0.04, wd=0.004)
-        biases = _variable_on_cpu('biases', [192], tf.constant_initializer(0.1))
-        local4 = tf.nn.relu(tf.matmul(local3, weights) + biases, name=scope.name)
-        _activation_summary(local4)
-
-    with tf.variable_scope('softmax_linear') as scope:
-        weights = _variable_with_weight_decay('weights', [192, FLAGS.num_classes],
-                                              stddev=1 / 192.0, wd=0.0)
-        biases = _variable_on_cpu('biases', [FLAGS.num_classes], tf.constant_initializer(0.0))
-        softmax_linear = tf.add(tf.matmul(local4, weights), biases, name=scope.name)
-        _activation_summary(softmax_linear)
-    return softmax_linear
-
+# def inference(images):
+#     # conv1
+#     with tf.variable_scope('conv1') as scope:
+#         kernel = _variable_with_weight_decay('weights', shape=[5, 5, 3, 64], stddev=5e-2, wd=0.0)
+#         conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
+#         print('conv 1 shape:' + str(conv.get_shape()))
+#         biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.0))
+#
+#         pre_activation = tf.nn.bias_add(conv, biases)
+#         print(pre_activation.get_shape())
+#         conv1 = tf.nn.relu(pre_activation, name=scope.name)
+#         _activation_summary(conv1)
+#
+#     # pool1
+#     pool1 = tf.nn.max_pool(conv1, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
+#                            padding='SAME', name='pool1')
+#     norm1 = tf.nn.lrn(pool1, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75, name='norm1')
+#     # conv2
+#     with tf.variable_scope('conv2') as scope:
+#         kernel = _variable_with_weight_decay('weights', shape=[5, 5, 64, 64], stddev=5e-2, wd=0.0)
+#         conv = tf.nn.conv2d(norm1, kernel, [1, 1, 1, 1], padding='SAME')
+#         biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.1))
+#         pre_activation = tf.nn.bias_add(conv, biases)
+#         conv2 = tf.nn.relu(pre_activation, name=scope.name)
+#         _activation_summary(conv2)
+#
+#     norm2 = tf.nn.lrn(pool1, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75, name='norm1')
+#     pool2 = tf.nn.max_pool(norm2, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
+#                            padding='SAME', name='pool2')
+#     with tf.variable_scope('local3') as scope:
+#         reshape = tf.reshape(pool2, [FLAGS.batch_size, -1])
+#         dim = reshape.get_shape()[1].value
+#         print('local3 reshape shape: ' + str(reshape.get_shape()))
+#         weights = _variable_with_weight_decay('weights', shape=[dim, 384], stddev=0.04, wd=0.004)
+#         biases = _variable_on_cpu('biases', [384], tf.constant_initializer(0.1))
+#         local3 = tf.nn.relu(tf.matmul(reshape, weights) + biases, name=scope.name)
+#         _activation_summary(local3)
+#     with tf.variable_scope('local4') as scope:
+#         weights = _variable_with_weight_decay('weights', shape=[384, 192], stddev=0.04, wd=0.004)
+#         biases = _variable_on_cpu('biases', [192], tf.constant_initializer(0.1))
+#         local4 = tf.nn.relu(tf.matmul(local3, weights) + biases, name=scope.name)
+#         _activation_summary(local4)
+#
+#     with tf.variable_scope('softmax_linear') as scope:
+#         weights = _variable_with_weight_decay('weights', [192, FLAGS.num_classes],
+#                                               stddev=1 / 192.0, wd=0.0)
+#         biases = _variable_on_cpu('biases', [FLAGS.num_classes], tf.constant_initializer(0.0))
+#         softmax_linear = tf.add(tf.matmul(local4, weights), biases, name=scope.name)
+#         _activation_summary(softmax_linear)
+#     return softmax_linear
 
 # def train(total_loss, global_step):
 #     num_batches_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN / FLAGS.batch_size
