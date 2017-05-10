@@ -81,8 +81,8 @@ def average_gradients(tower_grads):
 def train():
     # with tf.Graph().as_default(), tf.device('/cpu:0'):
     global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=True)
-    num_batches_per_epoch = (input.NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN / FLAGS.batch_size)
-    decay_steps = int(num_batches_per_epoch * input.NUM_EPOCHS_PER_DECAY)
+    # num_batches_per_epoch = (input.NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN / FLAGS.batch_size)
+    # decay_steps = int(num_batches_per_epoch * input.NUM_EPOCHS_PER_DECAY)
 
     # lr = tf.train.exponential_decay(model.INITIAL_LEARNING_RATE,
     #                                 global_step,

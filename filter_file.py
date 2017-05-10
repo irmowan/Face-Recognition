@@ -17,8 +17,7 @@ def read_labeled_image_list(image_list_file):
     """
     with open(image_list_file, 'r') as f:
         print('Opened image list file')
-        image_list = []
-        label_list = []
+        line_list = []
         for idx, line in enumerate(f):
             filename, label = line[:-1].split(' ')[:2]
             label = int(label)
@@ -26,22 +25,20 @@ def read_labeled_image_list(image_list_file):
                 if idx % 100000 == 0:
                     print('Inputted %d lines' % idx)
                 if label < SIZE:
-                    image_list.append(filename)
-                    label_list.append(int(label))
+                    line_list.append(line)
             else:
                 print('File not found: ' + filename)
         print('Return list.')
-    return image_list, label_list
+    return line_list 
 
 
-def output_image_list(output_file, image_list, label_list):
+def output_image_list(output_file, line_list):
     with open(output_file, 'w') as f:
-        for image, label in zip(image_list, label_list):
-            f.write(image + ' ' + str(label) + '\n')
+        for line in line_list:
+            f.write(line)
 
 
 if __name__ == "__main__":
-    image_list, label_list = read_labeled_image_list(INPUT)
-    print(image_list)
-    print(label_list)
-    output_image_list(OUTPUT, image_list, label_list)
+    line_list = read_labeled_image_list(INPUT)
+    print(line_list)
+    output_image_list(OUTPUT, line_list)

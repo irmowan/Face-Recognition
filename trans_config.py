@@ -1,8 +1,8 @@
 class Config():
     def __init__(self):
         self.PIXEL_MEANS = 0
-        self.scale = 225
-        self.crop_size = 128
+        self.scale = 255
+        self.crop_size = 224 
         # Resize mode: resize the rotated image according to the distance between
         # 0: two eyes.
         # 1: center of two eyes and mouth corner.
@@ -21,7 +21,7 @@ class Config():
 
         self.ec_y = 40
         self.eye_dist = 48
-        self.forcegray = True
+        self.forcegray = False 
 
 
 cfg = Config()

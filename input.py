@@ -80,7 +80,8 @@ def generate_input_queue(max_num_epochs=None, shuffle=True):
             landmark_list = []
             for idx, line in enumerate(f):
                 filename, label = line[:-1].split(' ')[:2]
-                landmark = line[:-1].split(' ')[2:]
+                l = line[:-1].split(' ')[6:]
+                landmark = [int(x) for x in l]
                 if os.path.exists(FLAGS.data_dir + filename):
                     image_list.append(filename)
                     label_list.append(int(label))
@@ -89,8 +90,8 @@ def generate_input_queue(max_num_epochs=None, shuffle=True):
                     print('File not found: ' + filename)
         return image_list, label_list, landmark_list
 
-    image_list, label_list, landmark_list = read_labeled_image_list(image_list_file=LIST_FILE)
     print('Generate input queue...')
+    image_list, label_list, landmark_list = read_labeled_image_list(image_list_file=LIST_FILE)
     input_queue = zip(image_list, label_list, landmark_list)
     random.shuffle(input_queue)
     # images = ops.convert_to_tensor(image_list, dtype=tf.string)
@@ -125,12 +126,8 @@ def read_casia():
     for i in range(FLAGS.batch_size):
         try:
             image, label_idx, landmark = read_image_from_disk(input_queue)
-            # print(type(image))
-            # image = tf.random_crop(image, [IMAGE_SIZE, IMAGE_SIZE, 3])
-            # image = tf.image.per_image_standardization(image)	
-            # images_and_labels.append([image, label])
-            # image = transform.img_process(image, landmark)
-            images.append(image)
+            croped_image = transform.img_process(image, landmark)
+            images.append(croped_image)
             label = np.zeros(FLAGS.num_classes)
             label[label_idx] = 1
             labels.append(label)
