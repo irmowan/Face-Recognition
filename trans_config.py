@@ -15,7 +15,7 @@ __C.crop_size = 128
 # 1: center of two eyes and mouth corner.
 __C.resize_mode = 1
 
-#Crop mode: Crop face area mode.
+# Crop mode: Crop face area mode.
 # 1: Eye center
 # 2: Left eye
 # 3: Right eye

@@ -8,6 +8,7 @@ INPUT = 'casia.txt'
 OUTPUT = 'casia_2.txt'
 SIZE = 32
 
+
 def read_labeled_image_list(image_list_file):
     """
     Reading labeled images from a list

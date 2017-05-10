@@ -25,20 +25,23 @@ tf.app.flags.DEFINE_integer('batch_size', 32,
                             """Number of images to process in a batch.""")
 tf.app.flags.DEFINE_string('data_dir', 'data/',
                            """Path to the CASIA data directory.""")
-LIST_FILE = "casia_2.txt"
+tf.app.flags.DEFINE_integer('num_classes', 32,
+                            """Number of classes""")
 FLAGS = tf.app.flags.FLAGS
-IMAGE_SIZE = 224
-NUM_CLASSES = 32 
-NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 5
-NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 2
 
-# Constants
-MOVING_AVERAGE_DECAY = 0.9999
-NUM_EPOCHS_PER_DECAY = 350.0
-LEARNING_RATE_DECAY_FACTOR = 0.1
-INITIAL_LEARNING_RATE = 0.1
+LIST_FILE = "casia_2.txt"
+IMAGE_SIZE = 224
 TOWER_NAME = 'tower'
 input_queue = None
+
+# NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 5
+# NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 2
+
+# Constants
+# MOVING_AVERAGE_DECAY = 0.9999
+# NUM_EPOCHS_PER_DECAY = 350.0
+# LEARNING_RATE_DECAY_FACTOR = 0.1
+# INITIAL_LEARNING_RATE = 0.1
 
 
 def read_labeled_image_list(image_list_file):
@@ -60,7 +63,7 @@ def read_labeled_image_list(image_list_file):
                 label_list.append(int(label))
             else:
                 print('File not found: ' + filename)
-        # print('Return list.')
+                # print('Return list.')
     return image_list, label_list
 
 
@@ -97,7 +100,7 @@ def generate_input_queue(max_num_epochs=None, shuffle=True):
     image_list, label_list = read_labeled_image_list(image_list_file=LIST_FILE)
     # images = ops.convert_to_tensor(image_list, dtype=tf.string)
     # labels = ops.convert_to_tensor(label_list, dtype=tf.int32)
-    # labels = tf.one_hot(label_list, depth=NUM_CLASSES, on_value=1.0, off_value=0.0, axis=-1)
+    # labels = tf.one_hot(label_list, depth=NUM_CLASSE, on_value=1.0, off_value=0.0, axis=-1)
     # images = image_list
     # labels = label_list
     print('Generate input queue...')
@@ -105,7 +108,7 @@ def generate_input_queue(max_num_epochs=None, shuffle=True):
     random.shuffle(input_queue)
     # print(type(images))
     # print(type(labels))
-    # labels = np.zeros((len(images), NUM_CLASSES))
+    # labels = np.zeros((len(images), FLAGS.num_classes))
     # labels[np.arange(len(images)), label_list] = 1
     # input_queue = tf.train.slice_input_producer(
     #    [images, labels], num_epochs=max_num_epochs, shuffle=shuffle)
@@ -115,9 +118,10 @@ def generate_input_queue(max_num_epochs=None, shuffle=True):
 def preprocess_image(image):
     crop = 224
     y, x, _ = image.shape
-    startx = x//2 - (crop//2)
-    starty = y//2 - (crop//2)
-    return image[starty:starty+crop, startx:startx+crop, :]
+    startx = x // 2 - (crop // 2)
+    starty = y // 2 - (crop // 2)
+    return image[starty:starty + crop, startx:startx + crop, :]
+
 
 def read_casia():
     global input_queue
@@ -130,13 +134,13 @@ def read_casia():
     for i in range(FLAGS.batch_size):
         try:
             image, label_idx = read_image_from_disk(input_queue)
-                    # print(type(image))	
+            # print(type(image))
             # image = tf.random_crop(image, [IMAGE_SIZE, IMAGE_SIZE, 3])
             # image = tf.image.per_image_standardization(image)	
             # images_and_labels.append([image, label])
             image = preprocess_image(image)
             images.append(image)
-            label = np.zeros(NUM_CLASSES)
+            label = np.zeros(FLAGS.num_classes)
             label[label_idx] = 1
             labels.append(label)
         except:
@@ -150,7 +154,7 @@ def read_casia():
     #     capacity=4 * num_preprocess_threads * FLAGS.batch_size,
     #     allow_smaller_final_batch=False
     # )
-    
+
     # print('Return batch size: ' + str(image_batch.shape) + ' ' + str(label_batch.shape))
     # sess = tf.Session()
     # with sess.as_default():
@@ -204,7 +208,6 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
 
 
 def loss(logits, labels):
-    print('Calculating loss in model.py')
     labels = tf.cast(labels, tf.int32)
     cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
         labels=labels, logits=logits, name='cross_entropy_per_example'
@@ -258,49 +261,49 @@ def inference(images):
         _activation_summary(local4)
 
     with tf.variable_scope('softmax_linear') as scope:
-        weights = _variable_with_weight_decay('weights', [192, NUM_CLASSES],
+        weights = _variable_with_weight_decay('weights', [192, FLAGS.num_classes],
                                               stddev=1 / 192.0, wd=0.0)
-        biases = _variable_on_cpu('biases', [NUM_CLASSES], tf.constant_initializer(0.0))
+        biases = _variable_on_cpu('biases', [FLAGS.num_classes], tf.constant_initializer(0.0))
         softmax_linear = tf.add(tf.matmul(local4, weights), biases, name=scope.name)
         _activation_summary(softmax_linear)
     return softmax_linear
 
 
-def train(total_loss, global_step):
-    num_batches_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN / FLAGS.batch_size
-
-    decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
-
-    # Delay the learning rate exponentially based on the number of steps
-    lr = tf.train.exponential_decay(
-        INITIAL_LEARNING_RATE, global_step, decay_steps, LEARNING_RATE_DECAY_FACTOR, staircase=False)
-    tf.summary.scalar('learning_rate', lr)
-
-    # Generate moving averages of all losses and associated summaries
-    loss_averages_op = _add_loss_summaries(total_loss)
-
-    # Compute gradients
-    with tf.control_dependencies([loss_averages_op]):
-        opt = tf.train.GradientDescentOptimizer(lr)
-        grads = opt.compute_gradients(total_loss)
-
-    # Apply gradients
-    apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
-
-    # Add histogram
-    for grad, var in grads:
-        if grad is not None:
-            tf.summary.histogram(var.op.name + '/gradients', grad)
-
-    # Track the moving averages of all trainable variables
-    variable_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY, global_step)
-    variable_averages_op = variable_averages.apply(tf.trainable_variables())
-
-    with tf.control_dependencies([apply_gradient_op, variable_averages_op]):
-        train_op = tf.no_op(name='train')
-
-    return train_op
-
-
-if __name__ == "__main__":
-    pass
+# def train(total_loss, global_step):
+#     num_batches_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN / FLAGS.batch_size
+#
+#     decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
+#
+#     # Delay the learning rate exponentially based on the number of steps
+#     lr = tf.train.exponential_decay(
+#         INITIAL_LEARNING_RATE, global_step, decay_steps, LEARNING_RATE_DECAY_FACTOR, staircase=False)
+#     tf.summary.scalar('learning_rate', lr)
+#
+#     # Generate moving averages of all losses and associated summaries
+#     loss_averages_op = _add_loss_summaries(total_loss)
+#
+#     # Compute gradients
+#     with tf.control_dependencies([loss_averages_op]):
+#         opt = tf.train.GradientDescentOptimizer(lr)
+#         grads = opt.compute_gradients(total_loss)
+#
+#     # Apply gradients
+#     apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
+#
+#     # Add histogram
+#     for grad, var in grads:
+#         if grad is not None:
+#             tf.summary.histogram(var.op.name + '/gradients', grad)
+#
+#     # Track the moving averages of all trainable variables
+#     variable_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY, global_step)
+#     variable_averages_op = variable_averages.apply(tf.trainable_variables())
+#
+#     with tf.control_dependencies([apply_gradient_op, variable_averages_op]):
+#         train_op = tf.no_op(name='train')
+#
+#     return train_op
+#
+#
+# if __name__ == "__main__":
+#     pass
