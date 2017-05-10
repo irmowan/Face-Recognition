@@ -5,8 +5,8 @@
 import os
 
 INPUT = 'casia.txt'
-OUTPUT = 'casia_2.txt'
-SIZE = 32
+OUTPUT = 'casia_100.txt'
+SIZE = 100
 
 
 def read_labeled_image_list(image_list_file):
@@ -40,5 +40,4 @@ def output_image_list(output_file, line_list):
 
 if __name__ == "__main__":
     line_list = read_labeled_image_list(INPUT)
-    print(line_list)
     output_image_list(OUTPUT, line_list)

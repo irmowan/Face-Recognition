@@ -26,11 +26,11 @@ tf.app.flags.DEFINE_integer('batch_size', 32,
                             """Number of images to process in a batch.""")
 tf.app.flags.DEFINE_string('data_dir', 'data/',
                            """Path to the CASIA data directory.""")
-tf.app.flags.DEFINE_integer('num_classes', 32,
+tf.app.flags.DEFINE_integer('num_classes', 100,
                             """Number of classes""")
 FLAGS = tf.app.flags.FLAGS
 
-LIST_FILE = "casia_2.txt"
+LIST_FILE = "casia_100.txt"
 IMAGE_SIZE = 224
 TOWER_NAME = 'tower'
 input_queue = None
