@@ -33,7 +33,6 @@ class VGG16:
         self.lrn_rate = 0.01
         print("npy file loaded")
         self.build()
-        self.loss_layer()
 
     def build(self, train_mode=None):
         """
@@ -105,18 +104,10 @@ class VGG16:
         #    self.relu7 = tf.nn.dropout(self.relu7, 0.5)
 
         self.fc8 = self.fc_layer(self.relu7, 4096, FLAGS.num_classes, "fc8")
-
         self.prob = tf.nn.softmax(self.fc8, name="prob")
         self.predictions = self.prob
         # self.data_dict = None
         print("build model finished: %ds" % (time.time() - start_time))
-
-    def loss_layer(self):
-        logits = self.prob
-        with tf.variable_scope('costs'):
-            xent = tf.nn.softmax_cross_entropy_with_logits(
-                logits=logits, labels=self.labels)
-            self.cost = tf.reduce_mean(xent, name='loss')
 
     def avg_pool(self, bottom, name):
         return tf.nn.avg_pool(bottom, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name=name)
