@@ -116,18 +116,7 @@ class VGG16:
         with tf.variable_scope('costs'):
             xent = tf.nn.softmax_cross_entropy_with_logits(
                 logits=logits, labels=self.labels)
-            self.cost = tf.reduce_mean(xent, name='xent')
-
-    def build_op(self):
-        trainable_variables = tf.trainable_variables()
-        grads = tf.gradients(self.cost, trainable_variables)
-        optimizer = tf.train.AdadeltaOptimizer(self.lrn_rate, 0.9)
-
-        apply_op = optimizer.apply_gradients(
-            zip(grads, trainable_variables), name='train_step')
-
-        self.train_op_list = [apply_op]
-        self.train_op = tf.group(*self.train_op_list)
+            self.cost = tf.reduce_mean(xent, name='loss')
 
     def avg_pool(self, bottom, name):
         return tf.nn.avg_pool(bottom, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name=name)
