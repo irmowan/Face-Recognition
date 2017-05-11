@@ -15,7 +15,7 @@ from six.moves import xrange
 import numpy as np
 import tensorflow as tf
 import input
-import vgg16 as vgg16
+import vgg16_multi as vgg16
 
 FLAGS = tf.app.flags.FLAGS
 
