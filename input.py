@@ -125,15 +125,17 @@ def read_casia():
     images = []
     labels = []
     for i in range(FLAGS.batch_size):
-        try:
-            image, label_idx, landmark = read_image_from_disk(input_queue)
-            croped_image = transform.img_process(image, landmark)
-            images.append(croped_image)
-            label = np.zeros(FLAGS.num_classes)
-            label[label_idx] = 1
-            labels.append(label)
-        except:
-            i = i - 1
+        image, label_idx, landmark = read_image_from_disk(input_queue)
+        if image.ndim == 2:
+            image = np.dstack([image] * 3)
+        croped_image = transform.img_process(image, landmark)
+        images.append(croped_image)
+        label = np.zeros(FLAGS.num_classes)
+        label[label_idx] = 1
+        labels.append(label)
+        # except Exception e:
+        #     print('Error: ' + str(e))
+        #     i = i - 1
     image_batch = np.array([x for x in images])
     label_batch = np.array([x for x in labels])
     # print(len(images_and_labels))

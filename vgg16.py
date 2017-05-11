@@ -6,6 +6,7 @@ import tensorflow as tf
 import time
 import pickle
 
+# This Mean value is BGR order
 VGG_MEAN = [103.939, 116.779, 123.68]
 
 FLAGS = tf.app.flags.FLAGS
@@ -29,7 +30,7 @@ class VGG16:
             self.data_dict = np.load(vgg16_npy_path, encoding='latin1').item()
         # # self.data_dict = pickle.load(f)
         #    pickle.dump(self.data_dict, f, protocol=2) 
-        self.lrn_rate = 0.01
+        self.lrn_rate = 0.001
         print("npy file loaded")
         self.build()
         self.loss_layer()
@@ -45,23 +46,25 @@ class VGG16:
         print("build model started")
 
         mean = tf.constant([103.939, 116.779, 123.68], dtype=tf.float32, shape=[1, 1, 1, 3], name='img_mean')
-        images = self.imgs - mean
+        # images = self.imgs - mean
         # images = tf.divide(images, 128)
         # Convert RGB to BGR
-        '''
-        red, green, blue = tf.split(self.imgs, 3, 3)
-        assert red.get_shape().as_list()[1:] == [224, 224, 1]
-        assert green.get_shape().as_list()[1:] == [224, 224, 1]
-        assert blue.get_shape().as_list()[1:] == [224, 224, 1]
-        bgr = tf.concat(3, [
-            blue - VGG_MEAN[0],
-            green - VGG_MEAN[1],
-            red - VGG_MEAN[2],
-        ])
+        channels = tf.unstack(self.imgs, axis=-1)
+        bgr = tf.stack([channels[2], channels[1], channels[0]], axis=-1)
+        # red, green, blue = tf.split(self.imgs, num_or_size_splits=3, axis=3)
+        # assert red.get_shape().as_list()[1:] == [224, 224, 1]
+        # assert green.get_shape().as_list()[1:] == [224, 224, 1]
+        # assert blue.get_shape().as_list()[1:] == [224, 224, 1]
+        # bgr = tf.concat(3, [
+        #    blue, green, red
+        # blue - VGG_MEAN[0],
+        # green - VGG_MEAN[1],
+        #    red - VGG_MEAN[2]
+        # ])
+        bgr_mean = bgr - mean
         assert bgr.get_shape().as_list()[1:] == [224, 224, 3]
-        '''
 
-        self.conv1_1 = self.conv_layer(images, 3, 64, "conv1_1")
+        self.conv1_1 = self.conv_layer(bgr_mean, 3, 64, "conv1_1")
         self.conv1_2 = self.conv_layer(self.conv1_1, 64, 64, "conv1_2")
         self.pool1 = self.max_pool(self.conv1_2, 'pool1')
 

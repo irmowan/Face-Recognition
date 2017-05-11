@@ -189,6 +189,10 @@ def train():
         if step % 100 == 0 or (step + 1) == FLAGS.max_steps:
             checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
             saver.save(sess, checkpoint_path, global_step=step)
+        if step == 100000:
+            vgg.lrn_rate /= 10
+        if step == 1000000:
+            vgg.lrn_rate /= 10
 
 
 def main(argv=None):

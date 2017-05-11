@@ -169,4 +169,6 @@ def img_process(im, landmark):
     crop = im_crop(im_rez, rez_landmark, resize_scale)
     if cfg.forcegray == True:
         crop = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
-    return (crop.astype(np.float) - cfg.PIXEL_MEANS) / cfg.scale
+    # print('Shapes' + str(im_rot.shape) + str(im_rez.shape) + str(crop.shape))
+    # return im_rot, im_rez, crop, (crop.astype(np.float) - cfg.PIXEL_MEANS) / cfg.scale
+    return crop
