@@ -119,12 +119,12 @@ def center_crop(image):
 
 def read_casia():
     global input_queue
-    if input_queue is None or len(input_queue) == 0:
-        input_queue = generate_input_queue()
 
     images = []
     labels = []
     for i in range(FLAGS.batch_size):
+        if input_queue is None or len(input_queue) == 0:
+            input_queue = generate_input_queue()
         image, label_idx, landmark = read_image_from_disk(input_queue)
         if image.ndim == 2:
             image = np.dstack([image] * 3)
