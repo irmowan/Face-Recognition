@@ -59,7 +59,7 @@ def read_image_from_disk(input_queue):
     return image, label, landmark
 
 
-def generate_input_queue(max_num_epochs=None, shuffle=True):
+def generate_input_queue(image_list_file=LIST_FILE, shuffle=True):
     """
     :param batch_size:
     :param max_num_epochs:
@@ -91,9 +91,10 @@ def generate_input_queue(max_num_epochs=None, shuffle=True):
         return image_list, label_list, landmark_list
 
     print('Generate input queue...')
-    image_list, label_list, landmark_list = read_labeled_image_list(image_list_file=LIST_FILE)
+    image_list, label_list, landmark_list = read_labeled_image_list(image_list_file)
     input_queue = zip(image_list, label_list, landmark_list)
-    random.shuffle(input_queue)
+    if shuffle:
+        random.shuffle(input_queue)
     # images = ops.convert_to_tensor(image_list, dtype=tf.string)
     # labels = ops.convert_to_tensor(label_list, dtype=tf.int32)
     # labels = tf.one_hot(label_list, depth=NUM_CLASSE, on_value=1.0, off_value=0.0, axis=-1)
