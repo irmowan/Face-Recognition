@@ -30,7 +30,7 @@ class VGG16:
             self.data_dict = np.load(vgg16_npy_path, encoding='latin1').item()
         # # self.data_dict = pickle.load(f)
         #    pickle.dump(self.data_dict, f, protocol=2) 
-        self.lrn_rate = 0.001
+        self.lrn_rate = 0.01
         print("npy file loaded")
         self.build()
         self.loss_layer()
