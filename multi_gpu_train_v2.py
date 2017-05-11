@@ -29,11 +29,15 @@ tf.app.flags.DEFINE_integer('num_gpus', 2,
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
 TOWER_NAME = 'tower'
+MOVING_AVERAGE_DECAY = 0.9999
+NUM_EPOCHS_PER_DECAY = 350.0
+LEARNING_RATE_DECAY_FACTOR = 0.1
+INITIAL_LEARNING_RATE = 0.1
 
 
 def tower_loss(scope, vgg):
     images, labels = input.read_casia()
-    logits = vgg.predictions(images)
+    logits = vgg.predictions
     _ = cal_loss(logits, labels)
     losses = tf.get_collection('losses', scope)
     total_loss = tf.add_n(losses, name='total_loss')
@@ -71,9 +75,15 @@ def average_gradients(tower_grads):
 def train():
     with tf.Graph().as_default(), tf.device('/cpu:0'):
         global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=True)
+        num_batches_per_epoch = input.NUM_IMAGES_PER_EPOCH_FOR_TRAIN / FLAGS.batch_size
+        decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
         vgg = vgg16.VGG16(trainable=True)
-
-        optimizer = tf.train.GradientDescentOptimizer(vgg.lrn_rate)
+        lr = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
+                                        global_step,
+                                        decay_steps,
+                                        LEARNING_RATE_DECAY_FACTOR,
+                                        staircase=True)
+        optimizer = tf.train.GradientDescentOptimizer(lr)
         tower_grads = []
         with tf.variable_scope(tf.get_variable_scope()):
             for i in xrange(FLAGS.num_gpus):
@@ -84,10 +94,15 @@ def train():
                         grads = optimizer.compute_gradients(loss)
                         tower_grads.append(grads)
         grads = average_gradients(tower_grads)
-        apply_op = optimizer.apply_gradients(
-            zip(grads, tf.trainable_variables()), global_step=global_step)
-        train_op_list = [apply_op]
-        train_op = tf.group(*train_op_list)
+        apply_gradient_op = optimizer.apply_gradients(grads, global_step=global_step)
+        variables_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY, global_step)
+        variables_averages_op = variables_averages.apply(tf.trainable_variables())
+        train_op = tf.group(apply_gradient_op, variables_averages_op)
+
+        # apply_op = optimizer.apply_gradients(
+        #     zip(grads, tf.trainable_variables()), global_step=global_step)
+        # train_op_list = [apply_op]
+        # train_op = tf.group(*train_op_list)
 
         saver = tf.train.Saver(tf.global_variables())
 
@@ -116,12 +131,6 @@ def train():
             if step % 100 == 0 or (step + 1) == FLAGS.max_steps:
                 checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
                 saver.save(sess, checkpoint_path, global_step=step)
-            if step == 10000:
-                vgg.lrn_rate /= 10
-            if step == 100000:
-                vgg.lrn_rate /= 10
-            if step == 1000000:
-                vgg.lrn_rate /= 10
 
 
 def main(argv=None):
