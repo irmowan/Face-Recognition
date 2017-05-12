@@ -36,9 +36,10 @@ INITIAL_LEARNING_RATE = 0.1
 
 
 def tower_loss(scope, vgg):
-    images, labels = input.read_casia()
+    # images, labels = input.read_casia()
+    # vgg.imgs = tf.cast(images, tf.float32)
     logits = vgg.predictions
-    _ = cal_loss(logits, labels)
+    _ = cal_loss(logits, vgg.labels)
     losses = tf.get_collection('losses', scope)
     total_loss = tf.add_n(losses, name='total_loss')
     return total_loss
@@ -119,7 +120,8 @@ def train():
         tf.train.start_queue_runners(sess=sess)
         for step in xrange(FLAGS.max_steps):
             start_time = time.time()
-            _, loss_value = sess.run([train_op, loss])
+            images, labels = input.read_casia()
+            _, loss_value = sess.run([train_op, loss], feed_dict = {vgg.imgs:images, vgg.labels:labels})
             duration = time.time() - start_time
 
             if step % 10 == 0:
