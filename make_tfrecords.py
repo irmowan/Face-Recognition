@@ -8,12 +8,12 @@ import numpy as np
 import tensorflow as tf
 import transform
 
-INPUT_LIST = 'casia_100.txt'
-OUTPUT_FILE = 'casia_100.tfrecord'
-NUM_CLASSES = 100
+INPUT_LIST = 'casia.txt'
+OUTPUT_FILE = 'casia.tfrecord'
+NUM_CLASSES = 10575
 
 if __name__ == "__main__":
-    input_queue = input.generate_input_queue('casia_100.txt')
+    input_queue = input.generate_input_queue(INPUT_LIST)
     print('Size of the queue is ' + str(len(input_queue)))
     images = []
     labels = []
