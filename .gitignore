@@ -2,6 +2,9 @@ data/
 train_data/
 test/
 
+*.tfrecord
+run_docker.sh
+
 .idea/
 .ropeproject/
 
