@@ -1,4 +1,6 @@
 data/
+train_data/
+test/
 
 .idea/
 .ropeproject/

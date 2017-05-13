@@ -19,7 +19,7 @@ import vgg16 as vgg16
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('train_dir', '/tmp/casia_train',
+tf.app.flags.DEFINE_string('train_dir', '/train_data/casia_train',
                            """Directory where to write event logs and checkpoint.""")
 tf.app.flags.DEFINE_integer('max_steps', 1000000,
                             """Number of batches to run.""")
