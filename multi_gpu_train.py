@@ -38,11 +38,10 @@ LEARNING_RATE_DECAY_FACTOR = 0.1
 INITIAL_LEARNING_RATE = 0.01
 
 
-def read_and_decode():
+def read_and_decode(file_queue):
     """
     http://warmspringwinds.github.io/tensorflow/tf-slim/2016/12/21/tfrecords-guide/
     """
-    file_queue = tf.train.string_input_producer([FLAGS.tfrecord_filename])
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(file_queue)
     features = tf.parse_single_example(
@@ -61,13 +60,13 @@ def read_and_decode():
     images, labels = tf.train.shuffle_batch([image, label],
                                             batch_size=FLAGS.batch_size,
                                             capacity=50000,
-                                            num_threads=1,
+                                            num_threads=4,
                                             min_after_dequeue=10000)
     return images, labels
 
 
-def tower_loss(scope, vgg):
-    images, labels = read_and_decode()
+def tower_loss(scope, vgg, file_queue):
+    images, labels = read_and_decode(file_queue)
     # vgg.imgs = tf.cast(images, tf.float32)
     # vgg.labels = tf.cast(labels, tf.float32)
     logits = vgg.inference(images)
@@ -119,11 +118,12 @@ def train():
                                         staircase=True)
         optimizer = tf.train.GradientDescentOptimizer(lr)
         tower_grads = []
+        file_queue = tf.train.string_input_producer([FLAGS.tfrecord_filename])
         with tf.variable_scope(tf.get_variable_scope()):
             for i in xrange(FLAGS.num_gpus):
                 with tf.device('/gpu:%d' % i):
                     with tf.name_scope('%s_%d' % (input.TOWER_NAME, i)) as scope:
-                        loss = tower_loss(scope, vgg)
+                        loss = tower_loss(scope, vgg, file_queue)
                         tf.get_variable_scope().reuse_variables()
                         grads = optimizer.compute_gradients(loss)
                         tower_grads.append(grads)
@@ -140,7 +140,7 @@ def train():
 
         saver = tf.train.Saver(tf.global_variables())
 
-        init = tf.global_variables_initializer()
+        init = tf.group(tf.local_variables_initializer(), tf.global_variables_initializer())
         print('Create session...')
         sess = tf.Session(config=tf.ConfigProto(
             allow_soft_placement=True,
