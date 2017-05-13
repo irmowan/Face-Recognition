@@ -24,26 +24,27 @@ tf.app.flags.DEFINE_string('train_dir', 'train_data/casia_train_multi',
                            """Directory where to write event logs and checkpoint.""")
 tf.app.flags.DEFINE_integer('max_steps', 1000000,
                             """Number of batches to run.""")
-tf.app.flags.DEFINE_integer('num_gpus', 3,
+tf.app.flags.DEFINE_integer('num_gpus', 2,
                             """How many GPUs to use.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
-tf.app.flags.DEFINE_string('tfrecord_filename', 'casia100.tfrecord',
+tf.app.flags.DEFINE_string('tfrecord_filename', 'casia_100.tfrecord',
                            """the name of the tfrecord""")
 
 TOWER_NAME = 'tower'
 MOVING_AVERAGE_DECAY = 0.9999
-NUM_EPOCHS_PER_DECAY = 350.0
+NUM_EPOCHS_PER_DECAY = 100.0
 LEARNING_RATE_DECAY_FACTOR = 0.1
-INITIAL_LEARNING_RATE = 0.1
+INITIAL_LEARNING_RATE = 0.01
 
 
-def read_and_decode(filename_queue):
+def read_and_decode():
     """
     http://warmspringwinds.github.io/tensorflow/tf-slim/2016/12/21/tfrecords-guide/
     """
+    file_queue = tf.train.string_input_producer([FLAGS.tfrecord_filename])
     reader = tf.TFRecordReader()
-    _, serialized_example = reader.read(filename_queue)
+    _, serialized_example = reader.read(file_queue)
     features = tf.parse_single_example(
         serialized_example,
         features={
@@ -52,22 +53,26 @@ def read_and_decode(filename_queue):
         })
     image = tf.decode_raw(features['image_raw'], tf.uint8)
     label = tf.cast(features['label'], tf.int32)
-
-    image.set_shape([224, 224, 3])
+    
+    # image_shape = tf.pack([224, 224, 3])
+    image = tf.reshape(image, [224, 224, 3])
+    image = tf.cast(image, tf.float32)
+    # image.set_shape([224, 224, 3])
     images, labels = tf.train.shuffle_batch([image, label],
                                             batch_size=FLAGS.batch_size,
-                                            capacity=30,
-                                            num_threads=2,
-                                            min_after_dequeue=10)
+                                            capacity=50000,
+                                            num_threads=1,
+                                            min_after_dequeue=10000)
     return images, labels
 
 
 def tower_loss(scope, vgg):
-    images, labels = read_and_decode(FLAGS.tfrecord_filename)
-    vgg.imgs = tf.cast(images, tf.float32)
-    vgg.labels = tf.cast(labels, tf.float32)
-    logits = vgg.predictions
-    _ = cal_loss(logits, vgg.labels)
+    images, labels = read_and_decode()
+    # vgg.imgs = tf.cast(images, tf.float32)
+    # vgg.labels = tf.cast(labels, tf.float32)
+    logits = vgg.inference(images)
+    # predictions
+    _ = cal_loss(logits, labels)
     losses = tf.get_collection('losses', scope)
     total_loss = tf.add_n(losses, name='total_loss')
     return total_loss
@@ -148,12 +153,12 @@ def train():
         tf.train.start_queue_runners(sess=sess)
         for step in xrange(FLAGS.max_steps):
             start_time = time.time()
-            images, labels = input.read_casia()
-            _ = sess.run([train_op], feed_dict={vgg.imgs: images, vgg.labels: labels})
+            # images, labels = input.read_casia()
+            _ = sess.run([train_op])
             duration = time.time() - start_time
 
             if step % 10 == 0:
-                loss_value = sess.run(loss, feed_dict={vgg.imgs: images, vgg.labels: labels})
+                loss_value = sess.run(loss)
                 num_images_per_step = FLAGS.batch_size * FLAGS.num_gpus
                 images_per_sec = num_images_per_step / duration
                 sec_per_batch = duration / FLAGS.num_gpus

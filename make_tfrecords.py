@@ -8,9 +8,9 @@ import numpy as np
 import tensorflow as tf
 import transform
 
-INPUT_LIST = 'casia.txt'
-OUTPUT_FILE = 'casia.tfrecord'
-NUM_CLASSES = 10575
+INPUT_LIST = 'casia_100.txt'
+OUTPUT_FILE = 'casia_100.tfrecord'
+NUM_CLASSES = 100
 
 if __name__ == "__main__":
     input_queue = input.generate_input_queue(INPUT_LIST)
@@ -23,10 +23,12 @@ if __name__ == "__main__":
         if image.ndim == 2:
             image = np.dstack([image] * 3)
         cropped_image = transform.img_process(image, landmark)
-        image_raw = image.tostring()
+        image_raw = cropped_image.tostring()
         example = tf.train.Example(features=tf.train.Features(feature={
             'label': tf.train.Feature(int64_list=tf.train.Int64List(value=[label_idx])),
             'image_raw': tf.train.Feature(bytes_list=tf.train.BytesList(value=[image_raw]))
         }))
         writer.write(example.SerializeToString())
+        if len(input_queue) % 1000 == 0:
+            print('Left %d images to pack' % len(input_queue))
     writer.close()

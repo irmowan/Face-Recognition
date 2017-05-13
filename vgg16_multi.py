@@ -21,17 +21,17 @@ class VGG16:
             vgg16_npy_path = path
             print(path)
         self.trainable = trainable
-        self.imgs = tf.placeholder(tf.float32, [None, 224, 224, 3], name='images')
-        self.labels = tf.placeholder(tf.float32, [None, FLAGS.num_classes], name='labels')
+        # self.imgs = tf.placeholder(tf.float32, [None, 224, 224, 3], name='images')
+        # self.labels = tf.placeholder(tf.float32, [None, FLAGS.num_classes], name='labels')
         self.var_dict = {}
         self.temp_value = None
         self.data_dict = None
         with open(vgg16_npy_path, 'rb') as f:
             self.data_dict = np.load(vgg16_npy_path, encoding='latin1').item()
         print("npy file loaded")
-        self.build()
+        # self.build()
 
-    def build(self, train_mode=None):
+    def inference(self, images, train_mode=None):
         """
         load variable from npy to build the VGG
 
@@ -45,7 +45,7 @@ class VGG16:
         # images = self.imgs - mean
         # images = tf.divide(images, 128)
         # Convert RGB to BGR
-        channels = tf.unstack(self.imgs, axis=-1)
+        channels = tf.unstack(images, axis=-1)
         bgr = tf.stack([channels[2], channels[1], channels[0]], axis=-1)
         # red, green, blue = tf.split(self.imgs, num_or_size_splits=3, axis=3)
         # assert red.get_shape().as_list()[1:] == [224, 224, 1]
@@ -105,6 +105,7 @@ class VGG16:
         self.predictions = self.prob
         # self.data_dict = None
         print("build model finished: %ds" % (time.time() - start_time))
+        return self.prob
 
     def avg_pool(self, bottom, name):
         return tf.nn.avg_pool(bottom, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name=name)
