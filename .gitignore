@@ -1,6 +1,6 @@
 data/
 train_data/
-test/
+test*/
 
 *.tfrecord
 run_docker.sh

@@ -15,7 +15,6 @@ import time
 from six.moves import xrange
 import numpy as np
 import tensorflow as tf
-import input
 import vgg16_multi as vgg16
 
 FLAGS = tf.app.flags.FLAGS
@@ -30,12 +29,16 @@ tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
 tf.app.flags.DEFINE_string('tfrecord_filename', 'casia_100.tfrecord',
                            """the name of the tfrecord""")
+tf.app.flags.DEFINE_integer('batch_size', 16, """Batch size""")
+tf.app.flags.DEFINE_integer('num_classes', 100, """Classes""")
 
 TOWER_NAME = 'tower'
 MOVING_AVERAGE_DECAY = 0.9999
-NUM_EPOCHS_PER_DECAY = 100.0
+NUM_IMAGES_PER_EPOCH = 4029
+NUM_EPOCHS_PER_DECAY = 5 
+
 LEARNING_RATE_DECAY_FACTOR = 0.1
-INITIAL_LEARNING_RATE = 0.01
+INITIAL_LEARNING_RATE = 0.1 
 
 
 def read_and_decode(file_queue):
@@ -108,8 +111,9 @@ def average_gradients(tower_grads):
 def train():
     with tf.Graph().as_default(), tf.device('/cpu:0'):
         global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=True)
-        num_batches_per_epoch = input.NUM_IMAGES_PER_EPOCH_FOR_TRAIN / FLAGS.batch_size
+        num_batches_per_epoch = NUM_IMAGES_PER_EPOCH / FLAGS.batch_size
         decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
+        print('Decay steps = %d' % decay_steps)
         vgg = vgg16.VGG16(trainable=True)
         lr = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
                                         global_step,
@@ -122,7 +126,7 @@ def train():
         with tf.variable_scope(tf.get_variable_scope()):
             for i in xrange(FLAGS.num_gpus):
                 with tf.device('/gpu:%d' % i):
-                    with tf.name_scope('%s_%d' % (input.TOWER_NAME, i)) as scope:
+                    with tf.name_scope('%s_%d' % (TOWER_NAME, i)) as scope:
                         loss = tower_loss(scope, vgg, file_queue)
                         tf.get_variable_scope().reuse_variables()
                         grads = optimizer.compute_gradients(loss)
@@ -153,18 +157,18 @@ def train():
         tf.train.start_queue_runners(sess=sess)
         for step in xrange(FLAGS.max_steps):
             start_time = time.time()
-            # images, labels = input.read_casia()
             _ = sess.run([train_op])
             duration = time.time() - start_time
 
             if step % 10 == 0:
-                loss_value = sess.run(loss)
+                # loss_value = sess.run(loss)
+                loss_value, learning_rate = sess.run([loss, optimizer._learning_rate])
                 num_images_per_step = FLAGS.batch_size * FLAGS.num_gpus
                 images_per_sec = num_images_per_step / duration
                 sec_per_batch = duration / FLAGS.num_gpus
-                format_str = '%s: step %d, loss = %.4f (%.1f images/sec; %.3f sec/batch)'
-                print(format_str % (datetime.now(), step, loss_value, images_per_sec, sec_per_batch))
-            if step % 100 == 0 or (step + 1) == FLAGS.max_steps:
+                format_str = '%s: step %d, loss = %.4f, learning rate = %.4f (%.1f images/sec; %.3f sec/batch)'
+                print(format_str % (datetime.now(), step, loss_value, learning_rate, images_per_sec, sec_per_batch))
+            if step % 3000 == 0 or (step + 1) == FLAGS.max_steps:
                 checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
                 saver.save(sess, checkpoint_path, global_step=step)
 

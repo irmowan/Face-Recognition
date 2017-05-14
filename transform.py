@@ -153,7 +153,7 @@ def guard(x, N):
     return x
 
 
-def img_process(im, landmark):
+def img_process(im, landmark, print_img=False):
     """
     Image processing, rotate, resize, and crop the face image.
 
@@ -171,4 +171,6 @@ def img_process(im, landmark):
         crop = cv2.cvtColor(crop, cv2.COLOR_RGB2GRAY)
     # print('Shapes' + str(im_rot.shape) + str(im_rez.shape) + str(crop.shape))
     # return im_rot, im_rez, crop, (crop.astype(np.float) - cfg.PIXEL_MEANS) / cfg.scale
+    if print_img:
+        return im, im_rot, im_rez, crop
     return crop
