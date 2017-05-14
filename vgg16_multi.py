@@ -45,8 +45,8 @@ class VGG16:
         # images = self.imgs - mean
         # images = tf.divide(images, 128)
         # Convert RGB to BGR
-        channels = tf.unstack(images, axis=-1)
-        bgr = tf.stack([channels[2], channels[1], channels[0]], axis=-1)
+        # channels = tf.unstack(images, axis=-1)
+        # bgr = tf.stack([channels[2], channels[1], channels[0]], axis=-1)
         # red, green, blue = tf.split(self.imgs, num_or_size_splits=3, axis=3)
         # assert red.get_shape().as_list()[1:] == [224, 224, 1]
         # assert green.get_shape().as_list()[1:] == [224, 224, 1]
@@ -57,8 +57,8 @@ class VGG16:
         # green - VGG_MEAN[1],
         #    red - VGG_MEAN[2]
         # ])
-        bgr_mean = bgr - mean
-        assert bgr.get_shape().as_list()[1:] == [224, 224, 3]
+        bgr_mean = images - mean
+        assert bgr_mean.get_shape().as_list()[1:] == [224, 224, 3]
 
         self.conv1_1 = self.conv_layer(bgr_mean, 3, 64, "conv1_1")
         self.conv1_2 = self.conv_layer(self.conv1_1, 64, 64, "conv1_2")
@@ -100,7 +100,7 @@ class VGG16:
         # elif self.trainable:
         #    self.relu7 = tf.nn.dropout(self.relu7, 0.5)
 
-        self.fc8 = self.fc_layer(self.relu7, 4096, FLAGS.num_classes, "fc8")
+        self.fc8 = self.fc_layer(self.relu7, 4096, FLAGS.num_classes, "fc_final")
         self.prob = tf.nn.softmax(self.fc8, name="prob")
         self.predictions = self.prob
         # self.data_dict = None
@@ -142,23 +142,22 @@ class VGG16:
         return filters, biases
 
     def get_fc_var(self, in_size, out_size, name):
-        initial_value = tf.truncated_normal([in_size, out_size], 0.0, 0.001)
+        initial_value = tf.truncated_normal([in_size, out_size], 0.0, 1.0)
         weights = self.get_var(initial_value, name, 0, name + "_weights")
 
-        initial_value = tf.truncated_normal([out_size], .0, .001)
+        initial_value = tf.truncated_normal([out_size], 0.0, 1.0)
         biases = self.get_var(initial_value, name, 1, name + "_biases")
 
         return weights, biases
 
     def get_var(self, initial_value, name, idx, var_name):
-        if self.data_dict is not None and name in self.data_dict and name != 'fc8':
+        if self.data_dict is not None and name in self.data_dict:
             value = self.data_dict[name][idx]
-            print(name, str(idx))
         else:
-            # sess = tf.Session()
             value = initial_value
-            # print(name +' initializing...')
-            # print('Value: ' + str(sess.run(value)))
+            # print(name, str(idx))
+            # print(type(value))
+            # print(value)
 
         if self.trainable:
             var = tf.Variable(value, name=var_name)

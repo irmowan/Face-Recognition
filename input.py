@@ -21,6 +21,7 @@ from scipy import misc
 import os
 import random
 import transform
+import cv2
 
 tf.app.flags.DEFINE_integer('batch_size', 32,
                             """Number of images to process in a batch.""")
@@ -56,7 +57,8 @@ def read_image_from_disk(input_queue):
     file_path = element[0]
     label = element[1]
     landmark = element[2]
-    image = misc.imread(FLAGS.data_dir + file_path)
+    # image = misc.imread(FLAGS.data_dir + file_path, mode='RGB')
+    image = cv2.imread(FLAGS.data_dir + file_path)
     return image, label, landmark
 
 
