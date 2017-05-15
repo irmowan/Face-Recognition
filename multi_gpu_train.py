@@ -22,7 +22,7 @@ from tensorflow.contrib.slim.python.slim.nets import vgg
 slim = tf.contrib.slim
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('train_dir', 'train_data/casia_train_multi',
+tf.app.flags.DEFINE_string('train_dir', 'train_data/casia_train',
                            """Directory where to write event logs and checkpoint.""")
 tf.app.flags.DEFINE_integer('max_steps', 1000000,
                             """Number of batches to run.""")
@@ -30,19 +30,21 @@ tf.app.flags.DEFINE_integer('num_gpus', 3,
                             """How many GPUs to use.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
-tf.app.flags.DEFINE_string('tfrecord_filename', 'casia_100.tfrecord',
+tf.app.flags.DEFINE_string('tfrecord_filename', 'casia.tfrecord',
                            """the name of the tfrecord""")
 tf.app.flags.DEFINE_integer('batch_size', 32, """Batch size""")
-tf.app.flags.DEFINE_integer('num_classes', 100, """Classes""")
+tf.app.flags.DEFINE_integer('num_classes', 10575, """Classes""")
 
 TOWER_NAME = 'tower'
 MOVING_AVERAGE_DECAY = 0.9999
-NUM_IMAGES_PER_EPOCH = 4029
-NUM_EPOCHS_PER_DECAY = 50
+NUM_IMAGES_PER_EPOCH = 445326 
+NUM_EPOCHS_PER_DECAY = 10
 
 LEARNING_RATE_DECAY_FACTOR = 0.1
 INITIAL_LEARNING_RATE = 0.01
 
+restore = False
+restore_step = 12500
 
 def read_and_decode():
     """
@@ -114,7 +116,7 @@ def train():
     with tf.Graph().as_default(), tf.device('/cpu:0'):
         global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
         num_batches_per_epoch = NUM_IMAGES_PER_EPOCH / FLAGS.batch_size
-        decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
+        decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY / FLAGS.num_gpus)
         print('Num batches per epoch = %d' % num_batches_per_epoch)
         print('Decay steps = %d' % decay_steps)
         lr = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
@@ -134,10 +136,10 @@ def train():
                         grads = optimizer.compute_gradients(loss)
                         tower_grads.append(grads)
         grads = average_gradients(tower_grads)
-        summaries.append(tf.summary.scalar('learning_rate'), lr)
+        summaries.append(tf.summary.scalar('learning_rate', lr))
         for grad, var in grads:
             if grad is not None:
-                summaries.append(tf.summary.histogram(var.op.name) + '/gradients', grad)
+                summaries.append(tf.summary.histogram(var.op.name + '/gradients', grad))
 
         apply_gradient_op = optimizer.apply_gradients(grads, global_step=global_step)
         for var in tf.trainable_variables():
@@ -149,26 +151,35 @@ def train():
         train_op = tf.group(apply_gradient_op, variables_averages_op)
 
         saver = tf.train.Saver(tf.global_variables())
-
         summary_op = tf.summary.merge(summaries)
 
-        init = tf.global_variables_initializer()
+        
 
         print('Create session...')
         sess = tf.Session(config=tf.ConfigProto(
             allow_soft_placement=True,
             log_device_placement=FLAGS.log_device_placement))
-
-        print('Init session...')
-        sess.run(init)
+        
+        if not restore:
+            init = tf.global_variables_initializer()
+            print('Init session...')
+            sess.run(init)
 
         print('Start queue runners...')
         tf.train.start_queue_runners(sess=sess)
 
         summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
-
+        
+        step = 0
+        if restore:
+            print('Restore model...')
+            saver.restore(sess, os.path.join(FLAGS.train_dir, 'model.ckpt-' + str(restore_step))) 
+            print('Model restored.')
+            step = int(sess.run([global_step])[0])
+        
         print('Start training...')
-        for step in xrange(FLAGS.max_steps):
+        # for step in xrange(FLAGS.max_steps):
+        while True:
             start_time = time.time()
             _ = sess.run([train_op])
             duration = time.time() - start_time
@@ -187,12 +198,14 @@ def train():
             if step % 500 == 0 or (step + 1) == FLAGS.max_steps:
                 checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
                 saver.save(sess, checkpoint_path, global_step=step)
+            step = step + 1
 
 
 def main(argv=None):
-    if tf.gfile.Exists(FLAGS.train_dir):
-        tf.gfile.DeleteRecursively(FLAGS.train_dir)
-    tf.gfile.MakeDirs(FLAGS.train_dir)
+    if not restore:
+        if tf.gfile.Exists(FLAGS.train_dir):
+            tf.gfile.DeleteRecursively(FLAGS.train_dir)
+        tf.gfile.MakeDirs(FLAGS.train_dir)
     train()
 
 
