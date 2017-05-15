@@ -18,6 +18,7 @@ import tensorflow as tf
 # import vgg16_multi as vgg16
 
 from tensorflow.contrib.slim.python.slim.nets import vgg
+
 slim = tf.contrib.slim
 FLAGS = tf.app.flags.FLAGS
 
@@ -25,7 +26,7 @@ tf.app.flags.DEFINE_string('train_dir', 'train_data/casia_train_multi',
                            """Directory where to write event logs and checkpoint.""")
 tf.app.flags.DEFINE_integer('max_steps', 1000000,
                             """Number of batches to run.""")
-tf.app.flags.DEFINE_integer('num_gpus', 3,  
+tf.app.flags.DEFINE_integer('num_gpus', 3,
                             """How many GPUs to use.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
@@ -36,8 +37,8 @@ tf.app.flags.DEFINE_integer('num_classes', 100, """Classes""")
 
 TOWER_NAME = 'tower'
 MOVING_AVERAGE_DECAY = 0.9999
-NUM_IMAGES_PER_EPOCH = 4029 
-NUM_EPOCHS_PER_DECAY = 50 
+NUM_IMAGES_PER_EPOCH = 4029
+NUM_EPOCHS_PER_DECAY = 50
 
 LEARNING_RATE_DECAY_FACTOR = 0.1
 INITIAL_LEARNING_RATE = 0.01
@@ -77,6 +78,9 @@ def tower_loss(scope):
     _ = cal_loss(logits, labels)
     losses = tf.get_collection('losses', scope)
     total_loss = tf.add_n(losses, name='total_loss')
+    for l in losses + [total_loss]:
+        loss_name = re.sub('%s_[0-9]*/' % TOWER_NAME, '', l.op.name)
+        tf.summary.scalar(loss_name, l)
     return total_loss
 
 
@@ -111,8 +115,8 @@ def train():
         global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
         num_batches_per_epoch = NUM_IMAGES_PER_EPOCH / FLAGS.batch_size
         decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
+        print('Num batches per epoch = %d' % num_batches_per_epoch)
         print('Decay steps = %d' % decay_steps)
-        # vgg = vgg16.VGG16(trainable=True)
         lr = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
                                         global_step,
                                         decay_steps,
@@ -126,18 +130,30 @@ def train():
                     with tf.name_scope('%s_%d' % (TOWER_NAME, i)) as scope:
                         loss = tower_loss(scope)
                         tf.get_variable_scope().reuse_variables()
+                        summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
                         grads = optimizer.compute_gradients(loss)
                         tower_grads.append(grads)
         grads = average_gradients(tower_grads)
+        summaries.append(tf.summary.scalar('learning_rate'), lr)
+        for grad, var in grads:
+            if grad is not None:
+                summaries.append(tf.summary.histogram(var.op.name) + '/gradients', grad)
+
         apply_gradient_op = optimizer.apply_gradients(grads, global_step=global_step)
+        for var in tf.trainable_variables():
+            summaries.append(tf.summary.histogram(var.op.name, var))
+
         variables_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY, global_step)
         variables_averages_op = variables_averages.apply(tf.trainable_variables())
+
         train_op = tf.group(apply_gradient_op, variables_averages_op)
 
         saver = tf.train.Saver(tf.global_variables())
 
+        summary_op = tf.summary.merge(summaries)
+
         init = tf.global_variables_initializer()
-        
+
         print('Create session...')
         sess = tf.Session(config=tf.ConfigProto(
             allow_soft_placement=True,
@@ -148,7 +164,9 @@ def train():
 
         print('Start queue runners...')
         tf.train.start_queue_runners(sess=sess)
-        
+
+        summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
+
         print('Start training...')
         for step in xrange(FLAGS.max_steps):
             start_time = time.time()
@@ -162,6 +180,10 @@ def train():
                 sec_per_batch = duration / FLAGS.num_gpus
                 format_str = '%s: step %d, loss = %.4f, learning rate = %.4f (%.1f images/sec; %.3f sec/batch)'
                 print(format_str % (datetime.now(), step, loss_value, learning_rate, images_per_sec, sec_per_batch))
+            if step % 100 == 0:
+                summary_str = sess.run(summary_op)
+                summary_writer.add_summary(summary_str, step)
+                
             if step % 500 == 0 or (step + 1) == FLAGS.max_steps:
                 checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
                 saver.save(sess, checkpoint_path, global_step=step)
