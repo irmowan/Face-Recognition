@@ -24,12 +24,10 @@ class VGG16:
         # self.imgs = tf.placeholder(tf.float32, [None, 224, 224, 3], name='images')
         # self.labels = tf.placeholder(tf.float32, [None, FLAGS.num_classes], name='labels')
         self.var_dict = {}
-        self.temp_value = None
         self.data_dict = None
         with open(vgg16_npy_path, 'rb') as f:
             self.data_dict = np.load(vgg16_npy_path, encoding='latin1').item()
         print("npy file loaded")
-        # self.build()
 
     def inference(self, images, train_mode=None):
         """
@@ -88,17 +86,17 @@ class VGG16:
 
         self.fc6 = self.fc_layer(self.pool5, 25088, 4096, "fc6")  # 25088 = ((224 / (2 ** 5)) ** 2) * 512
         self.relu6 = tf.nn.relu(self.fc6)
-        # if train_mode is not None:
-        #    self.relu6 = tf.cond(train_mode, lambda: tf.nn.dropout(self.relu6, 0.5), lambda: self.relu6)
-        # elif self.trainable:
-        #    self.relu6 = tf.nn.dropout(self.relu6, 0.5)
+        if train_mode is not None:
+           self.relu6 = tf.cond(train_mode, lambda: tf.nn.dropout(self.relu6, 0.5), lambda: self.relu6)
+        elif self.trainable:
+           self.relu6 = tf.nn.dropout(self.relu6, 0.5)
 
         self.fc7 = self.fc_layer(self.relu6, 4096, 4096, "fc7")
         self.relu7 = tf.nn.relu(self.fc7)
-        # if train_mode is not None:
-        #    self.relu7 = tf.cond(train_mode, lambda: tf.nn.dropout(self.relu7, 0.5), lambda: self.relu7)
-        # elif self.trainable:
-        #    self.relu7 = tf.nn.dropout(self.relu7, 0.5)
+        if train_mode is not None:
+           self.relu7 = tf.cond(train_mode, lambda: tf.nn.dropout(self.relu7, 0.5), lambda: self.relu7)
+        elif self.trainable:
+           self.relu7 = tf.nn.dropout(self.relu7, 0.5)
 
         self.fc8 = self.fc_layer(self.relu7, 4096, FLAGS.num_classes, "fc_final")
         self.prob = tf.nn.softmax(self.fc8, name="prob")
@@ -142,10 +140,10 @@ class VGG16:
         return filters, biases
 
     def get_fc_var(self, in_size, out_size, name):
-        initial_value = tf.truncated_normal([in_size, out_size], 0.0, 1.0)
+        initial_value = tf.truncated_normal([in_size, out_size], 0.0, 0.001)
         weights = self.get_var(initial_value, name, 0, name + "_weights")
 
-        initial_value = tf.truncated_normal([out_size], 0.0, 1.0)
+        initial_value = tf.truncated_normal([out_size], 0.0, 0.001)
         biases = self.get_var(initial_value, name, 1, name + "_biases")
 
         return weights, biases
@@ -154,6 +152,7 @@ class VGG16:
         if self.data_dict is not None and name in self.data_dict:
             value = self.data_dict[name][idx]
         else:
+            print(name + ' doesn\'t have pretrained, and will be initialized')
             value = initial_value
             # print(name, str(idx))
             # print(type(value))
