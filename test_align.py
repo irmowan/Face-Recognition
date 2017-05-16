@@ -1,4 +1,8 @@
-import input, transform, cv2
+import cv2
+
+import transform
+from outdated import input
+
 queue = input.generate_input_queue('casia_100.txt')
 for i in xrange(100):
     file_path = queue[0][0]
