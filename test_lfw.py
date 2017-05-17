@@ -22,7 +22,7 @@ tf.app.flags.DEFINE_integer('num_classes', 10575, """""")
 
 FLAGS = tf.app.flags.FLAGS
 
-threshold = 0.92
+threshold = 0.9338
 size = 6000
 data_dir = 'dataset/lfw_funneled/'
 image_output_dir = 'images/lfw_align/'
@@ -33,7 +33,7 @@ restore_model = 'model.ckpt'
 restore_step = 131000
 restore_file = restore_model + '-' + str(restore_step)
 
-extract_feature = 'vgg_16/fc6'
+extract_feature = 'vgg_16/fc7'
 
 class TestLFW():
     def __init__(self):
@@ -131,7 +131,7 @@ class TestLFW():
                     print(line)
                     continue
                 answer, distance = self.test_one_pair(image_pair)
-                print(same, answer, distance)
+                # print(same, answer, distance)
                 cnt += 1
                 if answer and same:
                     cnt_t_t += 1
@@ -152,8 +152,8 @@ class TestLFW():
         print('Correct = %d, rate = %s' % (cnt_correct, format(cnt_correct / float(cnt), '6.2%')))
         print('True,  guess True  = %d, rate = %s' % (cnt_t_t, format(cnt_t_t / float(cnt), '6.2%')))
         print('False, guess False = %d, rate = %s' % (cnt_f_f, format(cnt_f_f / float(cnt), '6.2%')))
-        print('Flase, guess True  = %d, rate = %s' % (cnt_f_t, format(cnt_f_t / float(cnt), '6.2%')))
         print('True,  guess False = %d, rate = %s' % (cnt_t_f, format(cnt_t_f / float(cnt), '6.2%')))
+        print('False, guess True  = %d, rate = %s' % (cnt_f_t, format(cnt_f_t / float(cnt), '6.2%')))
         self.dis_list.sort()
         print('Medium distance: %.4f' % self.dis_list[cnt/2])
 

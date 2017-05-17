@@ -15,23 +15,28 @@ import time
 from six.moves import xrange
 import numpy as np
 import tensorflow as tf
-# import vgg16_multi as vgg16
 
 from tensorflow.contrib.slim.python.slim.nets import vgg
+from tensorflow.contrib.slim.python.slim.nets import resnet_v1
 
 slim = tf.contrib.slim
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('train_dir', 'train_data/casia_train',
+dataset = 'casia_100'
+net = 'resnet_v1'
+restore = False
+restore_step = 70000
+
+tf.app.flags.DEFINE_string('train_dir', os.path.join('train_data', dataset + '_' + net),
                            """Directory where to write event logs and checkpoint.""")
+tf.app.flags.DEFINE_string('tfrecord_filename', os.path.join('tfrecord', dataset + '.tfrecord'),
+                           """the name of the tfrecord""")
 tf.app.flags.DEFINE_integer('max_steps', 1000000,
                             """Number of batches to run.""")
-tf.app.flags.DEFINE_integer('num_gpus', 3,
+tf.app.flags.DEFINE_integer('num_gpus', 2,
                             """How many GPUs to use.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
-tf.app.flags.DEFINE_string('tfrecord_filename', 'casia.tfrecord',
-                           """the name of the tfrecord""")
 tf.app.flags.DEFINE_integer('batch_size', 32, """Batch size""")
 tf.app.flags.DEFINE_integer('num_classes', 10575, """Classes""")
 
@@ -43,8 +48,6 @@ NUM_EPOCHS_PER_DECAY = 10
 LEARNING_RATE_DECAY_FACTOR = 0.1
 INITIAL_LEARNING_RATE = 0.01
 
-restore = False
-restore_step = 12500
 
 def read_and_decode():
     """
@@ -75,8 +78,16 @@ def read_and_decode():
 
 def tower_loss(scope):
     images, labels = read_and_decode()
-    with slim.arg_scope(vgg.vgg_arg_scope()):
-        logits, end_points = vgg.vgg_16(images, num_classes=FLAGS.num_classes)
+    if net == 'vgg_16':
+        with slim.arg_scope(vgg.vgg_arg_scope()):
+            logits, end_points = vgg.vgg_16(images, num_classes=FLAGS.num_classes)
+    elif net == 'resnet_v1':
+        with slim.arg_scope(resnet_v1.resnet_arg_scope()):
+            logits, end_points = resnet_v1.resnet_v1_101(images, num_classes=FLAGS.num_classes)
+        logits = tf.reshape(logits, [FLAGS.batch_size, FLAGS.num_classes])
+    else:
+        raise Exception('No network matched with net %s.' % net)
+    assert logits.shape == (FLAGS.batch_size, FLAGS.num_classes)
     _ = cal_loss(logits, labels)
     losses = tf.get_collection('losses', scope)
     total_loss = tf.add_n(losses, name='total_loss')
@@ -129,12 +140,13 @@ def train():
         with tf.variable_scope(tf.get_variable_scope()):
             for i in xrange(FLAGS.num_gpus):
                 with tf.device('/gpu:%d' % i):
-                    with tf.name_scope('%s_%d' % (TOWER_NAME, i)) as scope:
+                    with tf.name_scope('%s_%d' % (TOWER_NAME, i + 1)) as scope:
                         loss = tower_loss(scope)
                         tf.get_variable_scope().reuse_variables()
                         summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
                         grads = optimizer.compute_gradients(loss)
                         tower_grads.append(grads)
+
         grads = average_gradients(tower_grads)
         summaries.append(tf.summary.scalar('learning_rate', lr))
         for grad, var in grads:
@@ -152,8 +164,6 @@ def train():
 
         saver = tf.train.Saver(tf.global_variables())
         summary_op = tf.summary.merge(summaries)
-
-        
 
         print('Create session...')
         sess = tf.Session(config=tf.ConfigProto(
@@ -175,10 +185,9 @@ def train():
             print('Restore model...')
             saver.restore(sess, os.path.join(FLAGS.train_dir, 'model.ckpt-' + str(restore_step))) 
             print('Model restored.')
-            step = int(sess.run([global_step])[0])
+            step = int(sess.run([global_step])[0]) + 1
         
         print('Start training...')
-        # for step in xrange(FLAGS.max_steps):
         while True:
             start_time = time.time()
             _ = sess.run([train_op])
