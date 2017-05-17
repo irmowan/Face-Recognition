@@ -1,5 +1,6 @@
 dataset/
 train_data/
+images/
 test*/
 
 *.tfrecord

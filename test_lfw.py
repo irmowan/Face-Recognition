@@ -24,6 +24,7 @@ pair_list_file = 'txt/pairs.txt'
 
 no_landmark = 0
 
+
 def load_lfw_landmark():
     dic = {}
     with open(lfw_landmark_file, 'r') as f:
@@ -38,24 +39,25 @@ def test_one_pair(image_file_pair, dic):
     image_file_0, image_file_1 = image_file_pair
     image_0 = cv2.imread(data_dir + image_file_0)
     image_1 = cv2.imread(data_dir + image_file_1)
-    print(data_dir + image_file_0)
-    try:
+    
+    if image_file_0 in dic.keys():
         landmark_0 = dic[image_file_0]
-        crop_image_0 = transform.img_process(image_0, landmark_0)
-    except Exception as e:
-        print(type(e))
-        # TODO: Need crop
-        crop_image_0 = image_0
-    try:
+    else:
+        landmark_0 = None
+    crop_image_0 = transform.img_process(image_0, landmark_0)
+    assert crop_image_0.shape == (224, 224, 3)
+
+    if image_file_1 in dic.keys():
         landmark_1 = dic[image_file_1]
-        crop_image_1 = transform.img_process(image_1, landmark_1)
-    except Exception as e:
-        print(e)
-        crop_image_1 = image_1
-    cv2.imwrite(image_output_dir + image_file_0.split('/')[1], image_0)
-    cv2.imwrite(image_output_dir + image_file_1.split('/')[1], image_1)
-    cv2.imwrite(image_output_dir + image_file_0.split('/')[1][:-4] + '_crop.jpg', crop_image_0)
-    cv2.imwrite(image_output_dir + image_file_1.split('/')[1][:-4] + '_crop.jpg', crop_image_1)
+    else:
+        landmark_1 = None
+    crop_image_1 = transform.img_process(image_1, landmark_1)
+    assert crop_image_1.shape == (224, 224, 3)
+
+    # cv2.imwrite(image_output_dir + image_file_0.split('/')[1], image_0)
+    # cv2.imwrite(image_output_dir + image_file_1.split('/')[1], image_1)
+    # cv2.imwrite(image_output_dir + image_file_0.split('/')[1][:-4] + '_crop.jpg', crop_image_0)
+    # cv2.imwrite(image_output_dir + image_file_1.split('/')[1][:-4] + '_crop.jpg', crop_image_1)
     # feature_pair = []
     # for image in image_pair:
     #     landmark = get_landmark(image)
@@ -104,12 +106,12 @@ def test():
                 cnt_false_positive += 1
             elif not answer and same:
                 cnt_false_negative += 1
-        # print(dic)
+        assert cnt == size
         print('Test completed.')
         print('Count = %d' % cnt)
-        print('Correct count    = %d, rate = %.3f' % (cnt_correct, cnt_correct / size))
-        print('F-positive count = %d, rate = %.3f' % (cnt_false_positive, cnt_false_positive / size))
-        print('F-negative count = %d, rate = %.3f' % (cnt_false_negative, cnt_false_negative / size))
+        print('Correct   = %d, rate = %s' % (cnt_correct, format(cnt_correct / float(cnt), '6.2%')))
+        print('F-p count = %d, rate = %s' % (cnt_false_positive, format(cnt_false_positive / float(cnt), '6.2%')))
+        print('F-n count = %d, rate = %s' % (cnt_false_negative, format(cnt_false_negative / float(cnt), '6.2%')))
 
 
 if __name__ == "__main__":
