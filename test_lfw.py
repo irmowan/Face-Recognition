@@ -17,10 +17,12 @@ FLAGS = tf.app.flags.FLAGS
 
 threshold = 0.5
 size = 6000
+data_dir = 'dataset/lfw_funneled/'
 image_output_dir = 'images/lfw_align/'
-lfw_landmark_file = 'lfw_landmark.txt'
-pair_list_file = 'pairs.txt'
+lfw_landmark_file = 'txt/lfw_landmark.txt'
+pair_list_file = 'txt/pairs.txt'
 
+no_landmark = 0
 
 def load_lfw_landmark():
     dic = {}
@@ -33,16 +35,27 @@ def load_lfw_landmark():
 
 
 def test_one_pair(image_file_pair, dic):
-    image0 = cv2.imread(image_file_pair[0])
-    image1 = cv2.imread(image_file_pair[1])
-    landmark0 = dic[image0]
-    landmark1 = dic[image1]
-    crop_image0 = transform.img_process(image0, landmark0)
-    crop_image1 = transform.img_process(image1, landmark1)
-    cv2.imwrite(image_output_dir + image_file_pair[0], image0)
-    cv2.imwrite(image_output_dir + image_file_pair[1], image1)
-    cv2.imwrite(image_output_dir + image_file_pair[0][:-4] + '_crop.jpg', crop_image0)
-    cv2.imwrite(image_output_dir + image_file_pair[1][:-4] + '_crop.jpg', crop_image1)
+    image_file_0, image_file_1 = image_file_pair
+    image_0 = cv2.imread(data_dir + image_file_0)
+    image_1 = cv2.imread(data_dir + image_file_1)
+    print(data_dir + image_file_0)
+    try:
+        landmark_0 = dic[image_file_0]
+        crop_image_0 = transform.img_process(image_0, landmark_0)
+    except Exception as e:
+        print(type(e))
+        # TODO: Need crop
+        crop_image_0 = image_0
+    try:
+        landmark_1 = dic[image_file_1]
+        crop_image_1 = transform.img_process(image_1, landmark_1)
+    except Exception as e:
+        print(e)
+        crop_image_1 = image_1
+    cv2.imwrite(image_output_dir + image_file_0.split('/')[1], image_0)
+    cv2.imwrite(image_output_dir + image_file_1.split('/')[1], image_1)
+    cv2.imwrite(image_output_dir + image_file_0.split('/')[1][:-4] + '_crop.jpg', crop_image_0)
+    cv2.imwrite(image_output_dir + image_file_1.split('/')[1][:-4] + '_crop.jpg', crop_image_1)
     # feature_pair = []
     # for image in image_pair:
     #     landmark = get_landmark(image)
@@ -83,13 +96,17 @@ def test():
                 continue
             answer = test_one_pair(image_pair, dic)
             cnt += 1
+            # if (cnt == 10):
+            #    break
             if answer == same:
                 cnt_correct += 1
             elif answer and not same:
                 cnt_false_positive += 1
             elif not answer and same:
                 cnt_false_negative += 1
+        # print(dic)
         print('Test completed.')
+        print('Count = %d' % cnt)
         print('Correct count    = %d, rate = %.3f' % (cnt_correct, cnt_correct / size))
         print('F-positive count = %d, rate = %.3f' % (cnt_false_positive, cnt_false_positive / size))
         print('F-negative count = %d, rate = %.3f' % (cnt_false_negative, cnt_false_negative / size))
