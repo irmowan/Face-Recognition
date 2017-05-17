@@ -22,7 +22,7 @@ from tensorflow.contrib.slim.python.slim.nets import resnet_v1
 slim = tf.contrib.slim
 FLAGS = tf.app.flags.FLAGS
 
-dataset = 'casia_100'
+dataset = 'casia'
 net = 'resnet_v1'
 restore = False
 restore_step = 70000
@@ -68,11 +68,12 @@ def read_and_decode():
     label = tf.cast(features['label'], tf.int32)
     image = tf.reshape(image, [224, 224, 3])
     image = tf.cast(image, tf.float32)
+    min_after_dequeue = 10000
     images, labels = tf.train.shuffle_batch([image, label],
                                             batch_size=FLAGS.batch_size,
-                                            capacity=5000,
-                                            num_threads=4,
-                                            min_after_dequeue=1000)
+                                            capacity=min_after_dequeue + 12 * FLAGS.batch_size,
+                                            num_threads=8,
+                                            min_after_dequeue=min_after_dequeue)
     return images, labels
 
 
@@ -128,8 +129,16 @@ def train():
         global_step = tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
         num_batches_per_epoch = NUM_IMAGES_PER_EPOCH / FLAGS.batch_size
         decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY / FLAGS.num_gpus)
-        print('Num batches per epoch = %d' % num_batches_per_epoch)
-        print('Decay steps = %d' % decay_steps)
+        print()
+        print('    TRAIN  INFORMATION     ')
+        print('Training dataset: %s ' % dataset)
+        print('Training model  : %s' % net)
+        print('Number of GPUs  : %d' % FLAGS.num_gpus)
+        print('Batch size      : %d' % FLAGS.batch_size)
+        print('Num batches per epoch: %d' % num_batches_per_epoch)
+        print('Decay steps     : %d' % decay_steps)
+        print('---------------------------')
+        print()
         lr = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
                                         global_step,
                                         decay_steps,
@@ -137,6 +146,7 @@ def train():
                                         staircase=True)
         optimizer = tf.train.GradientDescentOptimizer(lr)
         tower_grads = []
+        print('Building graph...')
         with tf.variable_scope(tf.get_variable_scope()):
             for i in xrange(FLAGS.num_gpus):
                 with tf.device('/gpu:%d' % i):
@@ -165,14 +175,14 @@ def train():
         saver = tf.train.Saver(tf.global_variables())
         summary_op = tf.summary.merge(summaries)
 
-        print('Create session...')
+        print('Creating session...')
         sess = tf.Session(config=tf.ConfigProto(
             allow_soft_placement=True,
             log_device_placement=FLAGS.log_device_placement))
         
         if not restore:
             init = tf.global_variables_initializer()
-            print('Init session...')
+            print('Initializing session...')
             sess.run(init)
 
         print('Start queue runners...')
@@ -182,7 +192,7 @@ def train():
         
         step = 0
         if restore:
-            print('Restore model...')
+            print('Restoring model...')
             saver.restore(sess, os.path.join(FLAGS.train_dir, 'model.ckpt-' + str(restore_step))) 
             print('Model restored.')
             step = int(sess.run([global_step])[0]) + 1
@@ -208,7 +218,6 @@ def train():
                 checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
                 saver.save(sess, checkpoint_path, global_step=step)
             step = step + 1
-
 
 def main(argv=None):
     if not restore:
