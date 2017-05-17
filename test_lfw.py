@@ -7,11 +7,14 @@ import tensorflow as tf
 import numpy as np
 import cv2
 import os.path
-
 import transform
+from tensorflow.contrib.slim.nets import vgg
+
+slim = tf.contrib.slim
 
 tf.app.flags.DEFINE_string('model_name', '', """""")
 tf.app.flags.DEFINE_string('lfw_data_dir', 'lfw_funneled', """""")
+tf.app.flags.DEFINE_string('model_dir', 'train_data/casia_train/', """""")
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -21,6 +24,10 @@ data_dir = 'dataset/lfw_funneled/'
 image_output_dir = 'images/lfw_align/'
 lfw_landmark_file = 'txt/lfw_landmark.txt'
 pair_list_file = 'txt/pairs.txt'
+
+restore_model = 'model.ckpt'
+restore_step = 120000
+restore_file = restore_model + '-' + str(restore_step)
 
 no_landmark = 0
 
@@ -35,11 +42,24 @@ def load_lfw_landmark():
     return dic
 
 
+def test_forward(image):
+    with slim.arg_scope(vgg.vgg_arg_scope()):
+        logits, end_points = vgg.vgg_16(image, num_classes=FLAGS.num_classes)
+    extract_feature = 'vgg16/fc7'
+    with tf.Session() as sess:
+        saver = tf.train.saver(tf.global_variables())
+        saver.restore(sess, restore_file)
+        sess.run(tf.global_variables_initializer())
+        end_point = sess.run([end_points])[0]
+        print(end_point.shape)
+        print(end_point)
+
+
 def test_one_pair(image_file_pair, dic):
     image_file_0, image_file_1 = image_file_pair
     image_0 = cv2.imread(data_dir + image_file_0)
     image_1 = cv2.imread(data_dir + image_file_1)
-    
+
     if image_file_0 in dic.keys():
         landmark_0 = dic[image_file_0]
     else:
@@ -53,6 +73,10 @@ def test_one_pair(image_file_pair, dic):
         landmark_1 = None
     crop_image_1 = transform.img_process(image_1, landmark_1)
     assert crop_image_1.shape == (224, 224, 3)
+
+    test_forward(crop_image_0)
+
+    test_forward(crop_image_1)
 
     # cv2.imwrite(image_output_dir + image_file_0.split('/')[1], image_0)
     # cv2.imwrite(image_output_dir + image_file_1.split('/')[1], image_1)
@@ -73,6 +97,7 @@ def test_one_pair(image_file_pair, dic):
 
 def test():
     dic = load_lfw_landmark()
+
     with open(pair_list_file) as f:
         cnt = 0
         cnt_correct = 0
@@ -106,6 +131,8 @@ def test():
                 cnt_false_positive += 1
             elif not answer and same:
                 cnt_false_negative += 1
+            # TODO: test only one case first
+            break
         assert cnt == size
         print('Test completed.')
         print('Count = %d' % cnt)
