@@ -164,6 +164,9 @@ def img_process(im, landmark, print_img=False):
     Return:
         Crop face region
     """
+    if landmark is None:
+        im_rez = cv2.resize(im, (cfg.crop_size, cfg.crop_size))
+        return im_rez
     im_rot, ang, r_landmark = im_rotate(im, landmark)
     im_rez, resize_scale, rez_landmark = im_resize(im_rot, r_landmark, ang)
     crop = im_crop(im_rez, rez_landmark, resize_scale)
