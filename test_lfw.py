@@ -22,7 +22,7 @@ tf.app.flags.DEFINE_integer('num_classes', 10575, """""")
 
 FLAGS = tf.app.flags.FLAGS
 
-threshold = 0.9338
+threshold = 0.35
 size = 6000
 data_dir = 'dataset/lfw_funneled/'
 image_output_dir = 'images/lfw_align/'
@@ -41,7 +41,7 @@ class TestLFW():
         self.sess = tf.Session()
         self.end_points = None
         self.images = tf.placeholder(tf.float32, shape=(None, 224, 224, 3))
-        self.dis_list = [] 
+        self.sim_list = []
         
     def load_lfw_landmark(self):
         with open(lfw_landmark_file, 'r') as f:
@@ -57,9 +57,9 @@ class TestLFW():
         self.end_points = end_points
 
     def restore_model(self):
+        self.sess.run(tf.global_variables_initializer())
         saver = tf.train.Saver()
         saver.restore(self.sess, FLAGS.model_dir + restore_file)
-        self.sess.run(tf.global_variables_initializer())
 
     def get_features(self, image_0, image_1):
         images_0 = np.expand_dims(image_0, axis=0)
@@ -74,14 +74,12 @@ class TestLFW():
         image_file_0, image_file_1 = image_file_pair
         image_0 = cv2.imread(data_dir + image_file_0)
         image_1 = cv2.imread(data_dir + image_file_1)
-
         if image_file_0 in self.dic.keys():
             landmark_0 = self.dic[image_file_0]
         else:
             landmark_0 = None
         crop_image_0 = transform.img_process(image_0, landmark_0)
         assert crop_image_0.shape == (224, 224, 3)
-
         if image_file_1 in self.dic.keys():
             landmark_1 = self.dic[image_file_1]
         else:
@@ -90,8 +88,12 @@ class TestLFW():
         assert crop_image_1.shape == (224, 224, 3)
 
         feature_0, feature_1 = self.get_features(crop_image_0, crop_image_1)
-        distance = dot(feature_0, feature_1) / (norm(feature_0) * norm(feature_1))
-        if distance > threshold:
+
+        #feature_0 = feature_0 / norm(feature_0)
+        #feature_1 = feature_1 / norm(feature_1)
+        #similarity = norm(feature_0-feature_1)
+        similarity = dot(feature_0, feature_1) / (norm(feature_0) * norm(feature_1))
+        if similarity > threshold:
             answer = True
         else:
             answer = False
@@ -99,7 +101,7 @@ class TestLFW():
         # cv2.imwrite(image_output_dir + image_file_1.split('/')[1], image_1)
         # cv2.imwrite(image_output_dir + image_file_0.split('/')[1][:-4] + '_crop.jpg', crop_image_0)
         # cv2.imwrite(image_output_dir + image_file_1.split('/')[1][:-4] + '_crop.jpg', crop_image_1)
-        return answer, distance
+        return answer, similarity
 
     def test(self):
         self.load_lfw_landmark()
@@ -130,8 +132,8 @@ class TestLFW():
                     print('Line in the list error:')
                     print(line)
                     continue
-                answer, distance = self.test_one_pair(image_pair)
-                # print(same, answer, distance)
+                answer, similarity = self.test_one_pair(image_pair)
+                # print(same, answer, similarity)
                 cnt += 1
                 if answer and same:
                     cnt_t_t += 1
@@ -141,7 +143,7 @@ class TestLFW():
                     cnt_f_t += 1
                 elif not answer and same:
                     cnt_t_f += 1
-                self.dis_list.append(distance)
+                self.sim_list.append(similarity)
                 if cnt % 500 == 0:
                     print('Test %4d/%4d pairs' % (cnt, size))
         duration = int(time.time() - start_time)
@@ -154,8 +156,8 @@ class TestLFW():
         print('False, guess False = %d, rate = %s' % (cnt_f_f, format(cnt_f_f / float(cnt), '6.2%')))
         print('True,  guess False = %d, rate = %s' % (cnt_t_f, format(cnt_t_f / float(cnt), '6.2%')))
         print('False, guess True  = %d, rate = %s' % (cnt_f_t, format(cnt_f_t / float(cnt), '6.2%')))
-        self.dis_list.sort()
-        print('Medium distance: %.4f' % self.dis_list[cnt/2])
+        self.sim_list.sort()
+        print('Medium similarity: %.4f' % self.sim_list[cnt/2])
 
 if __name__ == "__main__":
     t = TestLFW()
