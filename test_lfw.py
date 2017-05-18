@@ -35,14 +35,14 @@ restore_file = restore_model + '-' + str(restore_step)
 
 extract_feature = 'vgg_16/fc7'
 
+
 class TestLFW():
     def __init__(self):
         self.dic = {}
         self.sess = tf.Session()
         self.end_points = None
         self.images = tf.placeholder(tf.float32, shape=(None, 224, 224, 3))
-        self.sim_list = []
-        
+
     def load_lfw_landmark(self):
         with open(lfw_landmark_file, 'r') as f:
             for line in f:
@@ -52,8 +52,8 @@ class TestLFW():
 
     def def_net(self):
         with slim.arg_scope(vgg.vgg_arg_scope()):
-            logits, end_points = vgg.vgg_16(self.images, num_classes=FLAGS.num_classes, 
-                                            dropout_keep_prob=1.0, is_training=False)
+            _, end_points = vgg.vgg_16(self.images, num_classes=FLAGS.num_classes,
+                                       dropout_keep_prob=1.0, is_training=False)
         self.end_points = end_points
 
     def restore_model(self):
@@ -65,7 +65,7 @@ class TestLFW():
         images_0 = np.expand_dims(image_0, axis=0)
         images_1 = np.expand_dims(image_1, axis=0)
         images = np.concatenate((images_0, images_1), axis=0)
-        end_point = self.sess.run([self.end_points], feed_dict={self.images:images})[0]
+        end_point = self.sess.run([self.end_points], feed_dict={self.images: images})[0]
         features = end_point[extract_feature]
         feature_0, feature_1 = features[0][0][0], features[1][0][0]
         return feature_0, feature_1
@@ -89,75 +89,88 @@ class TestLFW():
 
         feature_0, feature_1 = self.get_features(crop_image_0, crop_image_1)
 
-        #feature_0 = feature_0 / norm(feature_0)
-        #feature_1 = feature_1 / norm(feature_1)
-        #similarity = norm(feature_0-feature_1)
+        # feature_0 = feature_0 / norm(feature_0)
+        # feature_1 = feature_1 / norm(feature_1)
+        # similarity = norm(feature_0-feature_1)
         similarity = dot(feature_0, feature_1) / (norm(feature_0) * norm(feature_1))
-        if similarity > threshold:
-            answer = True
-        else:
-            answer = False
         # cv2.imwrite(image_output_dir + image_file_0.split('/')[1], image_0)
         # cv2.imwrite(image_output_dir + image_file_1.split('/')[1], image_1)
         # cv2.imwrite(image_output_dir + image_file_0.split('/')[1][:-4] + '_crop.jpg', crop_image_0)
         # cv2.imwrite(image_output_dir + image_file_1.split('/')[1][:-4] + '_crop.jpg', crop_image_1)
-        return answer, similarity
+        return feature_0, feature_1, similarity
+
+    def generate_image_pairs(self):
+        image_pairs = []
+        with open(pair_list_file) as f:
+            for line in f:
+                info = line.split()
+                same = None
+                image_pair = {}
+                if len(info) == 3:
+                    same = True
+                    first = '/'.join([info[0], info[0] + '_' + '%04d' % int(info[1]) + '.jpg'])
+                    second = '/'.join([info[0], info[0] + '_' + '%04d' % int(info[2]) + '.jpg'])
+                elif len(info) == 4:
+                    same = False
+                    first = '/'.join([info[0], info[0] + '_' + '%04d' % int(info[1]) + '.jpg'])
+                    second = '/'.join([info[2], info[2] + '_' + '%04d' % int(info[3]) + '.jpg'])
+                else:
+                    print('Line in the list error:')
+                    print(line)
+                    continue
+                image_pair['files'] = [first, second]
+                image_pair['ground_truth'] = same
+                image_pairs.append(image_pair)
+        return image_pairs
+
+    def search_threshold(self, sorted_pairs):
+        correct = size / 2
+        t_t = size / 2
+        f_f = 0
+        best_correct = correct
+        best_threshold = 0.0
+        best_t_t = t_t
+        best_f_f = f_f
+        for image_pair in sorted_pairs:
+            if image_pair['ground_truth'] is True:
+                correct -= 1
+                t_t -= 1
+            else:
+                correct += 1
+                f_f += 1
+            if correct > best_correct:
+                best_correct = correct
+                best_threshold = image_pair['similarity']
+                best_t_t, best_f_f = t_t, f_f
+        return best_correct, best_threshold, best_t_t, best_f_f
 
     def test(self):
         self.load_lfw_landmark()
         self.def_net()
         self.restore_model()
-        cnt = 0
-        cnt_t_t = 0
-        cnt_t_f = 0
-        cnt_f_t = 0 
-        cnt_f_f = 0
+        image_pairs = self.generate_image_pairs()
+        assert len(image_pairs) == size
+
         start_time = time.time()
-        with open(pair_list_file) as f:
-            for line in f:
-                info = line.split()
-                image_pair = []
-                same = None
-                if len(info) == 3:
-                    same = True
-                    first = '/'.join([info[0], info[0] + '_' + '%04d' % int(info[1]) + '.jpg'])
-                    second = '/'.join([info[0], info[0] + '_' + '%04d' % int(info[2]) + '.jpg'])
-                    image_pair = [first, second]
-                elif len(info) == 4:
-                    same = False
-                    first = '/'.join([info[0], info[0] + '_' + '%04d' % int(info[1]) + '.jpg'])
-                    second = '/'.join([info[2], info[2] + '_' + '%04d' % int(info[3]) + '.jpg'])
-                    image_pair = [first, second]
-                else:
-                    print('Line in the list error:')
-                    print(line)
-                    continue
-                answer, similarity = self.test_one_pair(image_pair)
-                # print(same, answer, similarity)
-                cnt += 1
-                if answer and same:
-                    cnt_t_t += 1
-                elif not answer and not same:
-                    cnt_f_f += 1
-                elif answer and not same:
-                    cnt_f_t += 1
-                elif not answer and same:
-                    cnt_t_f += 1
-                self.sim_list.append(similarity)
-                if cnt % 500 == 0:
-                    print('Test %4d/%4d pairs' % (cnt, size))
+        print('Begin test...')
+        for image_pair in image_pairs:
+            feature_0, feature_1, similarity = self.test_one_pair(image_pair['files'])
+            image_pair['features'] = [feature_0, feature_1]
+            image_pair['similarity'] = similarity
+            
         duration = int(time.time() - start_time)
-        assert cnt == size
-        cnt_correct = cnt_t_t + cnt_f_f
         print('Test completed, use %d seconds.' % duration)
-        print('Count = %d' % cnt)
-        print('Correct = %d, rate = %s' % (cnt_correct, format(cnt_correct / float(cnt), '6.2%')))
-        print('True,  guess True  = %d, rate = %s' % (cnt_t_t, format(cnt_t_t / float(cnt), '6.2%')))
-        print('False, guess False = %d, rate = %s' % (cnt_f_f, format(cnt_f_f / float(cnt), '6.2%')))
-        print('True,  guess False = %d, rate = %s' % (cnt_t_f, format(cnt_t_f / float(cnt), '6.2%')))
-        print('False, guess True  = %d, rate = %s' % (cnt_f_t, format(cnt_f_t / float(cnt), '6.2%')))
-        self.sim_list.sort()
-        print('Medium similarity: %.4f' % self.sim_list[cnt/2])
+
+        sorted_pairs = sorted(image_pairs, key=lambda x: x['similarity'])
+
+        print('Searching for best threshold...')
+        best_correct, best_threshold, best_t_t, best_f_f = self.search_threshold(sorted_pairs)
+        print('Choose threshold: %.4f' % best_threshold)
+
+        print('Size = %d, Correct = %d, rate = %s' % (size, best_correct, format(best_correct / float(size), '6.2%')))
+        print('True,  guess True  = %d, rate = %s' % (best_t_t, format(best_t_t / float(size), '6.2%')))
+        print('False, guess False = %d, rate = %s' % (best_f_f, format(best_f_f / float(size), '6.2%')))
+
 
 if __name__ == "__main__":
     t = TestLFW()
