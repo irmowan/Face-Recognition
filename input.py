@@ -25,7 +25,7 @@ import cv2
 
 tf.app.flags.DEFINE_integer('batch_size', 32,
                             """Number of images to process in a batch.""")
-tf.app.flags.DEFINE_string('data_dir', 'casia/',
+tf.app.flags.DEFINE_string('data_dir', 'dataset/casia/',
                            """Path to the CASIA casia directory.""")
 tf.app.flags.DEFINE_integer('num_classes', 100,
                             """Number of classes""")

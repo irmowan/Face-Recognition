@@ -17,15 +17,15 @@ import numpy as np
 import tensorflow as tf
 
 from tensorflow.contrib.slim.python.slim.nets import vgg
-from tensorflow.contrib.slim.python.slim.nets import resnet_v1
+from tensorflow.contrib.slim.python.slim.nets import resnet_v1, resnet_v2
 
 slim = tf.contrib.slim
 FLAGS = tf.app.flags.FLAGS
 
 dataset = 'casia'
-net = 'resnet_v1'
-restore = False
-restore_step = 70000
+net = 'vgg_16'
+restore = None
+restore_step = 82000
 
 tf.app.flags.DEFINE_string('train_dir', os.path.join('train_data', dataset + '_' + net),
                            """Directory where to write event logs and checkpoint.""")
@@ -33,7 +33,7 @@ tf.app.flags.DEFINE_string('tfrecord_filename', os.path.join('tfrecord', dataset
                            """the name of the tfrecord""")
 tf.app.flags.DEFINE_integer('max_steps', 1000000,
                             """Number of batches to run.""")
-tf.app.flags.DEFINE_integer('num_gpus', 2,
+tf.app.flags.DEFINE_integer('num_gpus', 4,
                             """How many GPUs to use.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
@@ -43,7 +43,7 @@ tf.app.flags.DEFINE_integer('num_classes', 10575, """Classes""")
 TOWER_NAME = 'tower'
 MOVING_AVERAGE_DECAY = 0.9999
 NUM_IMAGES_PER_EPOCH = 445326 
-NUM_EPOCHS_PER_DECAY = 10
+NUM_EPOCHS_PER_DECAY = 30
 
 LEARNING_RATE_DECAY_FACTOR = 0.1
 INITIAL_LEARNING_RATE = 0.01
@@ -82,9 +82,20 @@ def tower_loss(scope):
     if net == 'vgg_16':
         with slim.arg_scope(vgg.vgg_arg_scope()):
             logits, end_points = vgg.vgg_16(images, num_classes=FLAGS.num_classes)
-    elif net == 'resnet_v1':
+    elif net == 'vgg_19':
+        with slim.arg_scope(vgg.vgg_arg_scope()):
+            logits, end_points = vgg.vgg_19(images, num_classes=FLAGS.num_classes)
+    elif net == 'resnet_v1_101':
         with slim.arg_scope(resnet_v1.resnet_arg_scope()):
             logits, end_points = resnet_v1.resnet_v1_101(images, num_classes=FLAGS.num_classes)
+        logits = tf.reshape(logits, [FLAGS.batch_size, FLAGS.num_classes])
+    elif net == 'resnet_v1_50':
+        with slim.arg_scope(resnet_v1.resnet_arg_scope()):
+            logits, end_points = resnet_v1.resnet_v1_50(images, num_classes=FLAGS.num_classes)
+        logits = tf.reshape(logits, [FLAGS.batch_size, FLAGS.num_classes])
+    elif net == 'resnet_v2_50':
+        with slim.arg_scope(resnet_v2.resnet_arg_scope()):
+            logits, end_points = resnet_v2.resnet_v2_50(images, num_classes=FLAGS.num_classes)
         logits = tf.reshape(logits, [FLAGS.batch_size, FLAGS.num_classes])
     else:
         raise Exception('No network matched with net %s.' % net)
@@ -150,10 +161,11 @@ def train():
         with tf.variable_scope(tf.get_variable_scope()):
             for i in xrange(FLAGS.num_gpus):
                 with tf.device('/gpu:%d' % i):
-                    with tf.name_scope('%s_%d' % (TOWER_NAME, i + 1)) as scope:
+                    with tf.name_scope('%s_%d' % (TOWER_NAME, i)) as scope:
                         loss = tower_loss(scope)
                         tf.get_variable_scope().reuse_variables()
-                        summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
+                        if i == 0:
+                            summaries = tf.get_collection(tf.GraphKeys.SUMMARIES, scope)
                         grads = optimizer.compute_gradients(loss)
                         tower_grads.append(grads)
 
@@ -172,7 +184,7 @@ def train():
 
         train_op = tf.group(apply_gradient_op, variables_averages_op)
 
-        saver = tf.train.Saver(tf.global_variables())
+        saver = tf.train.Saver(tf.global_variables(), keep_checkpoint_every_n_hours=1)
         summary_op = tf.summary.merge(summaries)
 
         print('Creating session...')
@@ -193,7 +205,8 @@ def train():
         step = 0
         if restore:
             print('Restoring model...')
-            saver.restore(sess, os.path.join(FLAGS.train_dir, 'model.ckpt-' + str(restore_step))) 
+            # saver.recover_last_checkpoints(FLAGS.train_dir)
+            saver.restore(sess, os.path.join(FLAGS.train_dir, str(net) + '.ckpt-' + str(restore_step))) 
             print('Model restored.')
             step = int(sess.run([global_step])[0]) + 1
         
@@ -208,22 +221,27 @@ def train():
                 num_images_per_step = FLAGS.batch_size * FLAGS.num_gpus
                 images_per_sec = num_images_per_step / duration
                 sec_per_batch = duration / FLAGS.num_gpus
-                format_str = '%s: step %d, loss = %.4f, learning rate = %.4f (%.1f images/sec; %.3f sec/batch)'
+                format_str = '%s: step %d, loss = %.4f, learning rate = %.1e (%.1f images/sec; %.3f sec/batch)'
                 print(format_str % (datetime.now(), step, loss_value, learning_rate, images_per_sec, sec_per_batch))
+
             if step % 100 == 0:
                 summary_str = sess.run(summary_op)
                 summary_writer.add_summary(summary_str, step)
                 
-            if step % 500 == 0 or (step + 1) == FLAGS.max_steps:
-                checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+            if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
+                checkpoint_path = os.path.join(FLAGS.train_dir, str(net) + '.ckpt')
                 saver.save(sess, checkpoint_path, global_step=step)
             step = step + 1
 
 def main(argv=None):
     if not restore:
         if tf.gfile.Exists(FLAGS.train_dir):
-            tf.gfile.DeleteRecursively(FLAGS.train_dir)
-        tf.gfile.MakeDirs(FLAGS.train_dir)
+            confirm = raw_input('Training data exists. Do you want to delete them? ')
+            if confirm == 'y' or confirm == 'yes':
+                tf.gfile.DeleteRecursively(FLAGS.train_dir)
+                tf.gfile.MakeDirs(FLAGS.train_dir)
+            else:
+                print('Not delete the existed data. Start training.')
     train()
 
 

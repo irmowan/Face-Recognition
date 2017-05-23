@@ -6,10 +6,10 @@
 import numpy as np
 import tensorflow as tf
 
-from outdated import input
+import input
 import transform
 
-INPUT_LIST = 'casia.txt'
+INPUT_LIST = 'txt/casia.txt'
 OUTPUT_FILE = 'casia.tfrecord'
 NUM_CLASSES = 10575 
 

@@ -21,26 +21,27 @@ tf.app.flags.DEFINE_integer('num_classes', 10575, """""")
 
 FLAGS = tf.app.flags.FLAGS
 
-model_name = 'vgg_16'
+net = 'resnet_v1_50'
 restore_model = 'model.ckpt'
-restore_step = 135000
-choose_feature = 'fc7'
+restore_step = 138000
+choose_feature = 'res_block'
 
 size = 6000
 image_output_dir = 'images/lfw_align/'
 lfw_landmark_file = 'txt/lfw_landmark.txt'
 pair_list_file = 'txt/pairs.txt'
-model_dir = 'train_data/casia_' + model_name + '/'
+model_dir = 'train_data/casia_' + net + '/'
 restore_file = restore_model + '-' + str(restore_step)
 features_dict = {
     'fc6': 'vgg_16/fc6',
     'fc7': 'vgg_16/fc7',
     'fc8': 'vgg_16/fc8',
-    'res': 'resnet_v1_101/block2/unit_2/bottleneck_v1/conv3'
+    'res_block': net + '/block4',
+    'res_logits': net + '/logits'
 }
 extract_feature = features_dict[choose_feature]
 features_dir = 'features'
-output_feature_path = os.path.join(features_dir,'_'.join(('lfw', model_name, 'step' + str(restore_step), choose_feature)) + '.txt')
+output_feature_path = os.path.join(features_dir,'_'.join(('lfw', net, 'step' + str(restore_step), choose_feature)) + '.txt')
 
 class TestLFW():
     def __init__(self):
@@ -57,27 +58,34 @@ class TestLFW():
                 self.dic[filename] = [int(x) for x in info[-10:]]
 
     def def_net(self):
-        if model_name == 'vgg_16':
+        if net == 'vgg_16':
             with slim.arg_scope(vgg.vgg_arg_scope()):
                 _, end_points = vgg.vgg_16(self.images, num_classes=FLAGS.num_classes,
                                            dropout_keep_prob=1.0, is_training=False)
-        elif model_name == 'resnet_v1':
+        elif net == 'resnet_v1_101':
             with slim.arg_scope(resnet_v1.resnet_arg_scope()):
                 _, end_points = resnet_v1.resnet_v1_101(self.images, num_classes=FLAGS.num_classes)
+        elif net == 'resnet_v1_50':
+            with slim.arg_scope(resnet_v1.resnet_arg_scope()):
+                _, end_points = resnet_v1.resnet_v1_50(self.images, num_classes=FLAGS.num_classes)
+            print(end_points)
+        else:
+            raise Exception('No network matched with net %s' % net)
         self.end_points = end_points
 
     def restore_model(self):
         self.sess.run(tf.global_variables_initializer())
         saver = tf.train.Saver()
         saver.restore(self.sess, model_dir + restore_file)
-
+	
     def get_features(self, image_0, image_1):
         images_0 = np.expand_dims(image_0, axis=0)
         images_1 = np.expand_dims(image_1, axis=0)
         images = np.concatenate((images_0, images_1), axis=0)
         end_point = self.sess.run([self.end_points], feed_dict={self.images: images})[0]
         features = end_point[extract_feature]
-        feature_0, feature_1 = features[0][0][0], features[1][0][0]
+        feature_0 = features[0].reshape(features.shape[1] * features.shape[2] * features.shape[3])
+        feature_1 = features[1].reshape(features.shape[1] * features.shape[2] * features.shape[3])
         return feature_0, feature_1
 
     def test_one_pair(self, image_file_pair):
@@ -168,6 +176,7 @@ class TestLFW():
         print('Begin test...')
         for idx, image_pair in enumerate(image_pairs):
             feature_0, feature_1, similarity = self.test_one_pair(image_pair['files'])
+            print(image_pair['ground_truth'], similarity)
             image_pair['features'] = [feature_0, feature_1]
             image_pair['similarity'] = similarity
             if (idx + 1) % 500 == 0:

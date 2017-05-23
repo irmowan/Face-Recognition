@@ -16,11 +16,9 @@ class Config():
         # 6: Right mouth corner
         # 7: Random
         self.crop_mode = 1
-
-        self.ec_mc_y = 48
-
-        self.ec_y = 40
-        self.eye_dist = 48
+        self.ec_mc_y = 84
+        self.ec_y = 70
+        self.eye_dist = 84
         self.forcegray = False 
 
 
