@@ -13,6 +13,7 @@ import transform
 from tensorflow.contrib.slim.nets import vgg, resnet_v1
 from numpy import dot
 from numpy.linalg import norm
+from functools import reduce
 
 slim = tf.contrib.slim
 
@@ -21,10 +22,10 @@ tf.app.flags.DEFINE_integer('num_classes', 10575, """""")
 
 FLAGS = tf.app.flags.FLAGS
 
-net = 'resnet_v1_50'
+net = 'vgg_16'
 restore_model = net + '.ckpt'
-restore_step = 123000
-choose_feature = 'res_block'
+restore_step = 113000
+choose_feature = 'fc7'
 
 size = 6000
 image_output_dir = 'images/lfw_align/'
@@ -83,8 +84,9 @@ class TestLFW():
         images = np.concatenate((images_0, images_1), axis=0)
         end_point = self.sess.run([self.end_points], feed_dict={self.images: images})[0]
         features = end_point[extract_feature]
-        feature_0 = features[0].reshape(features.shape[1] * features.shape[2] * features.shape[3])
-        feature_1 = features[1].reshape(features.shape[1] * features.shape[2] * features.shape[3])
+        num_features = reduce((lambda x, y: x * y), features.shape[1:])
+        feature_0 = features[0].reshape(num_features)
+        feature_1 = features[1].reshape(num_features)
         return feature_0, feature_1
 
     def test_one_pair(self, image_file_pair):
@@ -178,7 +180,7 @@ class TestLFW():
             # print(image_pair['ground_truth'], similarity)
             image_pair['features'] = [feature_0, feature_1]
             image_pair['similarity'] = similarity
-            print(image_pair['ground_truth'], image_pair['similarity'])
+            # print(image_pair['ground_truth'], image_pair['similarity'])
             if (idx + 1) % 500 == 0:
                 print('Tested %4d/%4d pairs' % (idx + 1, size))
             
@@ -190,7 +192,6 @@ class TestLFW():
         print('Searching for best threshold...')
         best_correct, best_threshold, best_t_t, best_f_f = self.search_threshold(sorted_pairs)
         print('Choose threshold: %.4f' % best_threshold)
-
         print('Size = %d, Correct = %4d, rate = %s' % (size, best_correct, format(best_correct / float(size), '6.2%')))
         print('True,  guess True  = %4d, rate = %s' % (best_t_t, format(best_t_t / float(size), '6.2%')))
         print('False, guess False = %4d, rate = %s' % (best_f_f, format(best_f_f / float(size), '6.2%')))

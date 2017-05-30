@@ -14,30 +14,40 @@ class InputFeature():
         self.feature_name = feature_name
         self.num_features = num_features
         self.n_components = n_components
-        self.file = 'features/lfw' + net + '_step' + str(step) + '_' + feature_name + '.txt'
+        self.file = 'features/lfw_' + net + '_step' + str(step) + '_' + feature_name + '.txt'
         if wrong:
             self.file = 'features_wrong/lfw_' + net + '_step' + str(step) + '_' + feature_name + '.txt'
         self.features = None
 
 
-f1 = InputFeature('vgg_16', 113000, 'fc7', 4096, 256)
-f2 = InputFeature('vgg_16', 131500, 'fc7', 4096, 256, wrong=True)
-features = [f1, f2]
+f1 = InputFeature('vgg_16', 67000, 'fc7', 4096, 256)
+f2 = InputFeature('vgg_16', 78000, 'fc7', 4096, 256)
+f3 = InputFeature('vgg_16', 91000, 'fc7', 4096, 256)
+f4 = InputFeature('vgg_16', 113000, 'fc7', 4096, 256)
+f5 = InputFeature('vgg_16', 113000, 'fc6', 4096, 256)
+f6 = InputFeature('vgg_16', 113000, 'fc8', 10575, 256)
+f7 = InputFeature('resnet_v1_50', 123000, 'res_block', 7 * 7 * 2048, 256)
+f8 = InputFeature('vgg_16', 131500, 'fc7', 4096, 256, wrong=True)
+f9 = InputFeature('vgg_16', 135000, 'fc7', 4096, 256, wrong=True)
+
+features = [f3, f4, f8, f9]
 pca_components = 512
 size = 6000
-num_features = f1.num_features + f2.num_features
-
 for f in features:
     if not os.path.isfile(f.file):
         print('File not found: %s' % f.file)
         exit(0)
 
 for f in features:
+    print('Loading %s ...' % f.file)
     f.features = pickle.load(open(f.file, 'r'))
 
+num_features = sum([f.num_features for f in features])
+print('Sum of input features is %d' % num_features)
 feature_map = np.zeros((12000, num_features))
 gts = [0 for x in range(6000)]
 
+print('Fusing features...')
 for f in features:
     x = 0
     feature = f.features
@@ -52,13 +62,12 @@ for f in features:
         feature_map[2 * i + 1, x:x + f.num_features] = feature_1
     x = x + f.num_features
 
-print(feature_map.shape)
-
+print('Shape of feature map before PCA: %s' % str(feature_map.shape))
+print('Calculating PCA...')
 pca = PCA(n_components=pca_components)
 new_feature_map = pca.fit_transform(feature_map)
-print(new_feature_map.shape)
-print(len(gts))
-
+print('Shape of feature map after PCA:  %s' % str(new_feature_map.shape))
+assert len(gts) == size
 
 # print('Storing data at %s' % f_out)
 # output = open(f_out, 'w')
@@ -92,7 +101,6 @@ pairs = [dict() for x in range(size)]
 for i in range(size):
     f_0 = feature_map[2 * i]
     f_1 = feature_map[2 * i + 1]
-
     #    f_0 = np.concatenate((f_0,f_2))
     #    f_1 = np.concatenate((f_1, f_3))
     sim = dot(f_0, f_1) / (norm(f_0) * norm(f_1))
