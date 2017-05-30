@@ -22,8 +22,8 @@ tf.app.flags.DEFINE_integer('num_classes', 10575, """""")
 FLAGS = tf.app.flags.FLAGS
 
 net = 'resnet_v1_50'
-restore_model = 'model.ckpt'
-restore_step = 138000
+restore_model = net + '.ckpt'
+restore_step = 123000
 choose_feature = 'res_block'
 
 size = 6000
@@ -66,9 +66,8 @@ class TestLFW():
             with slim.arg_scope(resnet_v1.resnet_arg_scope()):
                 _, end_points = resnet_v1.resnet_v1_101(self.images, num_classes=FLAGS.num_classes)
         elif net == 'resnet_v1_50':
-            with slim.arg_scope(resnet_v1.resnet_arg_scope()):
+            with slim.arg_scope(resnet_v1.resnet_arg_scope(is_training=True)):
                 _, end_points = resnet_v1.resnet_v1_50(self.images, num_classes=FLAGS.num_classes)
-            print(end_points)
         else:
             raise Exception('No network matched with net %s' % net)
         self.end_points = end_points
@@ -176,9 +175,10 @@ class TestLFW():
         print('Begin test...')
         for idx, image_pair in enumerate(image_pairs):
             feature_0, feature_1, similarity = self.test_one_pair(image_pair['files'])
-            print(image_pair['ground_truth'], similarity)
+            # print(image_pair['ground_truth'], similarity)
             image_pair['features'] = [feature_0, feature_1]
             image_pair['similarity'] = similarity
+            print(image_pair['ground_truth'], image_pair['similarity'])
             if (idx + 1) % 500 == 0:
                 print('Tested %4d/%4d pairs' % (idx + 1, size))
             

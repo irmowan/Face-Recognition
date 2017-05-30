@@ -23,9 +23,9 @@ slim = tf.contrib.slim
 FLAGS = tf.app.flags.FLAGS
 
 dataset = 'casia'
-net = 'vgg_16'
-restore = None
-restore_step = 82000
+net = 'resnet_v1_50'
+restore = True
+restore_step = 133000
 
 tf.app.flags.DEFINE_string('train_dir', os.path.join('train_data', dataset + '_' + net),
                            """Directory where to write event logs and checkpoint.""")
@@ -33,7 +33,7 @@ tf.app.flags.DEFINE_string('tfrecord_filename', os.path.join('tfrecord', dataset
                            """the name of the tfrecord""")
 tf.app.flags.DEFINE_integer('max_steps', 1000000,
                             """Number of batches to run.""")
-tf.app.flags.DEFINE_integer('num_gpus', 4,
+tf.app.flags.DEFINE_integer('num_gpus', 3,
                             """How many GPUs to use.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
@@ -43,7 +43,7 @@ tf.app.flags.DEFINE_integer('num_classes', 10575, """Classes""")
 TOWER_NAME = 'tower'
 MOVING_AVERAGE_DECAY = 0.9999
 NUM_IMAGES_PER_EPOCH = 445326 
-NUM_EPOCHS_PER_DECAY = 30
+NUM_EPOCHS_PER_DECAY = 20 
 
 LEARNING_RATE_DECAY_FACTOR = 0.1
 INITIAL_LEARNING_RATE = 0.01

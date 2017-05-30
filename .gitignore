@@ -2,7 +2,7 @@ dataset/
 train_data/
 images/
 test*/
-features/
+features*/
 
 *.tfrecord
 run_docker.sh
