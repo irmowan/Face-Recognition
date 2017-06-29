@@ -14,22 +14,22 @@ Attention: the code is under TensorFlow 1.1 and python 2.7.
 
 ```
 // Directories
-├── dataset/			// Datasets, including CASIA, LFW
-├── tfrecord/			// TFRecord for tensorflow
-├── images/				// Output images
-├── outdated/			// Some old code
-├── tools/				// Some tool files
-├── train_data/			// Store train data
-├── features/			// Store features when test
-└── txt/				// Text files for data
+├── dataset/            // Datasets, including CASIA, LFW
+├── tfrecord/           // TFRecord for tensorflow
+├── images/             // Output images
+├── outdated/           // Some old code
+├── tools/              // Some tool files
+├── train_data/         // Store train data
+├── features/           // Store features when test
+└── txt/                // Text files for data
 
 // Main files
-├── make_tfrecords.py	// Make images into one tfrecord file
-├── multi_gpu_train.py	// Main training file for multi-gpu train
-├── trans_config.py		// Config file for transform
-├── transform.py		// Image transform using cv2
-├── pca_fuse.py			// Feature fuse and PCA
-└── test_lfw.py			// Test LFW using searching threshold
+├── make_tfrecords.py   // Make images into one tfrecord file
+├── multi_gpu_train.py  // Main training file for multi-gpu train
+├── trans_config.py     // Config file for transform
+├── transform.py        // Image transform using cv2
+├── pca_fuse.py         // Feature fuse and PCA
+└── test_lfw.py         // Test LFW using searching threshold
 
 // Tool/outdated files
 // You can find some ideas or here.
@@ -54,3 +54,6 @@ Attention: the code is under TensorFlow 1.1 and python 2.7.
 
 [irmowan](https://github.com/irmowan)
 
+### Date
+
+2017.5
